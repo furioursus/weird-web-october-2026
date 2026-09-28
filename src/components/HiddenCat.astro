@@ -1,0 +1,138 @@
+---
+/**
+ * The month-long throughline: one cat hidden somewhere on every page. Place it with `style`
+ * (it's absolutely positioned by default) and tint it with `color`. Clicking it marks the cat as
+ * found for that day in localStorage, which the index page reads to show a running tally.
+ *
+ * The silhouettes are simple placeholders. Swap the SVG paths for real art whenever.
+ */
+interface Props {
+	cat: "tybalt" | "dante";
+	/** Day of October, 1–31, used as the storage key. */
+	day: number;
+	/** Rendered width in px; height follows the artwork. */
+	size?: number;
+	/** Any CSS color. Defaults to the surrounding text color. */
+	color?: string;
+	/** Inline styles for placement, e.g. "top: 40%; left: 12%; rotate: -8deg". */
+	style?: string;
+	/** Set false to place it in normal flow instead of absolutely. */
+	absolute?: boolean;
+}
+
+const { cat, day, size = 32, color = "currentColor", style = "", absolute = true } = Astro.props;
+const name = cat === "tybalt" ? "Tybalt" : "Dante";
+---
+
+<wwo-cat data-cat={cat} data-day={day}>
+	<button
+		type="button"
+		class="wwo-cat"
+		class:list={{ "wwo-cat--absolute": absolute }}
+		aria-label="Something small and furry"
+		style={`--wwo-cat-size: ${size}px; color: ${color}; ${style}`}
+	>
+		{
+			cat === "tybalt" ? (
+				<svg viewBox="0 0 64 64" aria-hidden="true">
+					<path
+						fill="currentColor"
+						d="M20 22 22 8l8 9h6l8-9 2 14c4 6 2 12-4 14 8 6 10 16 8 24H16c-2-8 0-18 8-24-6-2-8-8-4-14Z"
+					/>
+					<path
+						d="M50 58c10 0 12-12 6-16"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="4"
+						stroke-linecap="round"
+					/>
+				</svg>
+			) : (
+				<svg viewBox="0 0 64 64" aria-hidden="true">
+					<path
+						fill="currentColor"
+						d="M10 58c-4 0-4-14 4-18 4-2 8-2 10-2v-8l3-10 6 7h6l6-7 3 10c3 4 2 8 0 10 8 0 12 6 12 12 0 4-2 6-6 6Z"
+					/>
+					<path
+						d="M54 58c-6 4-24 4-28 0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="4"
+						stroke-linecap="round"
+					/>
+				</svg>
+			)
+		}
+		<span class="wwo-cat__found" role="status">{name} was here.</span>
+	</button>
+</wwo-cat>
+
+<script>
+	const KEY = "wwo:cats";
+
+	function readFound(): Record<string, string> {
+		try {
+			return JSON.parse(localStorage.getItem(KEY) ?? "{}");
+		} catch {
+			return {};
+		}
+	}
+
+	class WwoCat extends HTMLElement {
+		connectedCallback() {
+			const { cat = "", day = "" } = this.dataset;
+			const button = this.querySelector("button");
+			if (!button) return;
+			if (readFound()[day] === cat) button.classList.add("is-found");
+
+			button.addEventListener("click", () => {
+				button.classList.add("is-found");
+				try {
+					localStorage.setItem(KEY, JSON.stringify({ ...readFound(), [day]: cat }));
+				} catch {
+					// Storage blocked (private window, etc.): finding still works for this visit.
+				}
+				this.dispatchEvent(new CustomEvent("wwo:cat-found", { bubbles: true, detail: { cat, day } }));
+			});
+		}
+	}
+
+	customElements.define("wwo-cat", WwoCat);
+</script>
+
+<style is:global>
+	:where(.wwo-cat) {
+		inline-size: var(--wwo-cat-size);
+		padding: 0;
+		border: 0;
+		background: none;
+		cursor: pointer;
+		line-height: 0;
+	}
+	:where(.wwo-cat--absolute) {
+		position: absolute;
+	}
+	:where(.wwo-cat svg) {
+		inline-size: 100%;
+		block-size: auto;
+	}
+	:where(.wwo-cat__found) {
+		position: absolute;
+		inset: auto auto 100% 50%;
+		translate: -50% -4px;
+		padding: 0.25em 0.5em;
+		font: 12px/1.2 ui-monospace, monospace;
+		white-space: nowrap;
+		color: #ff2e93;
+		background: #000;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.2s;
+	}
+	:where(.wwo-cat.is-found .wwo-cat__found) {
+		opacity: 1;
+	}
+	:where(.wwo-cat:not(.wwo-cat--absolute)) {
+		position: relative;
+	}
+</style>

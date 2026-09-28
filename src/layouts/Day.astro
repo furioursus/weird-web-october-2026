@@ -1,0 +1,96 @@
+---
+/**
+ * Shared shell for every day's page. It owns the plumbing (title, meta, Octothorpes tags,
+ * self-hosted fonts, prev/next nav) and deliberately ships no visual styles, so each day can look
+ * completely different. Put everything else in the page itself.
+ */
+import { Font } from "astro:assets";
+import type { ComponentProps } from "astro/types";
+import { DAYS, getDay } from "@/data/days";
+import { cssVariableFor, FONTS } from "@/fonts";
+
+interface Props {
+	/** Day of October, 1–31. The theme, slug and hashtag all come from this. */
+	day: number;
+	/** Short description for meta tags and link previews. */
+	description?: string;
+	/**
+	 * Font families this page uses, e.g. ["Special Elite", "Inter"]. Each must be listed in
+	 * src/fonts.ts. Use them in CSS as var(--font-special-elite), var(--font-inter), etc.
+	 */
+	fonts?: string[];
+	/** Show the small prev / all / next nav. Turn it off when it fights the concept. */
+	nav?: boolean;
+}
+
+const { day, description, fonts = [], nav = true } = Astro.props;
+const { theme } = getDay(day);
+const prev = DAYS[day - 2];
+const next = DAYS[day];
+
+// Astro only warns about fonts it can't find, so a typo would silently fall back to a system
+// font. Fail the build instead.
+type FontVariable = ComponentProps<typeof Font>["cssVariable"];
+const fontVariables = fonts.map((name) => {
+	if (!FONTS.some((f) => f.name === name)) {
+		throw new Error(`Day ${day} uses font "${name}", which isn't listed in src/fonts.ts.`);
+	}
+	return cssVariableFor(name) as FontVariable;
+});
+
+const title = `${theme} · Weird Web October, day ${day}`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		{description && <meta name="description" content={description} />}
+		<link rel="canonical" href={canonical} />
+		<meta property="og:title" content={title} />
+		{description && <meta property="og:description" content={description} />}
+		<meta property="og:url" content={canonical} />
+
+		<!-- Octothorpes: lists this page under #weirdweboctober and the day's theme tag. -->
+		<link rel="preload" as="fetch" href={`https://octothorp.es/?uri=${canonical}`} />
+		<link rel="octo:octothorpes" href="weirdweboctober" />
+		<link rel="octo:octothorpes" href={theme} />
+
+		{fontVariables.map((cssVariable) => <Font cssVariable={cssVariable} preload />)}
+
+		<slot name="head" />
+	</head>
+	<body>
+		<slot />
+
+		{
+			nav && (
+				<nav class="wwo-nav" aria-label="Weird Web October">
+					{prev ? <a href={`/${prev.slug}/`}>← {prev.theme}</a> : <span />}
+					<a href="/">all days</a>
+					{next ? <a href={`/${next.slug}/`}>{next.theme} →</a> : <span />}
+				</nav>
+			)
+		}
+	</body>
+</html>
+
+<style is:global>
+	/* :where() keeps specificity at zero, so any page can restyle or hide the nav. */
+	:where(.wwo-nav) {
+		position: fixed;
+		inset: auto 0.75rem 0.75rem auto;
+		z-index: 2147483000;
+		display: flex;
+		gap: 0.75rem;
+		font: 12px/1.2 ui-monospace, monospace;
+		color: #fff;
+		mix-blend-mode: difference;
+	}
+	:where(.wwo-nav a) {
+		color: inherit;
+	}
+</style>
