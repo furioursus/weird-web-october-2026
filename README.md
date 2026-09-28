@@ -7,7 +7,6 @@ A small, weird website every day of October, following the [Weird Web October](h
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Local dev server |
-| `npm run dev:inspect` | Dev server with the astro-pathfinder component inspector |
 | `npm run new-day -- 5` | Scaffold day 5's page (`src/pages/05-sheet.astro`) |
 | `npm run new-day -- 5 --cat dante` | Same, choosing which cat hides (default alternates by day) |
 | `npm run new-day -- 5 --fonts "Special Elite,Inter"` | Same, with the page's fonts (first is body, second is headings); new ones are added to `src/fonts.ts` |
@@ -24,17 +23,7 @@ A small, weird website every day of October, following the [Weird Web October](h
 
 ## Finding which file renders something
 
-`npm run dev:inspect` runs the dev server with [astro-pathfinder](https://github.com/furioursus/astro-pathfinder), installed as a devDependency from its v1.0.0 release tarball. Hover any element and a corner panel lists the `.astro` files that produced it, innermost first, each one clickable into the editor:
-
-```
-src/components/HiddenCat.astro:38
-src/layouts/Day.astro:45
-src/pages/01-reveal.astro:6
-```
-
-- It only runs when `INSPECT=1` and the command is `dev`. A build with `INSPECT=1` set is byte-identical to one without it.
-- Content from `set:html` names the component that injected it, with no line number.
-- Astro 7.3's own `data-astro-source-file` / `data-astro-source-loc` attributes work in plain `npm run dev` too, but they name only the one file an element was typed in. Pathfinder adds the whole chain of layouts and components around it.
+In `npm run dev`, Astro stamps every element in the page body with `data-astro-source-file` and `data-astro-source-loc` (line:column), so the browser's element inspector shows the file an element was typed in. Slotted markup names the page it was written in, not the layout it renders inside. For an opening tag that spans several lines, the line points at its closing `>`. Builds carry none of these attributes.
 
 ## Sharing
 
