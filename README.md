@@ -19,7 +19,7 @@ A small, weird website every day of October, following the [Weird Web October](h
 - `src/fonts.ts`: every font the site uses. They're self-hosted through Astro's Fonts API with the Fontsource provider, so nothing loads from Google's CDN. Each font is exposed as a CSS variable, e.g. `var(--font-special-elite)`.
 - `src/layouts/Day.astro`: the shared shell. It sets the title and meta tags, adds both Octothorpes tags, loads only the fonts the page asks for, and renders a small prev/next nav. It ships no visual styles.
 - `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
-- `src/pages/index.astro`: the calendar. A day links up once its page file exists.
+- `src/pages/index.astro`: the calendar. A day links up once its page file exists. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
 
 ## Finding which file renders something
 

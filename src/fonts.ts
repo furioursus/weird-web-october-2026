@@ -19,6 +19,8 @@ export interface FontFamily {
 
 export const FONTS: FontFamily[] = [
 	{ name: "Inter", weights: ["100 900"] },
+	{ name: "Rubik Mono One" },
+	{ name: "Space Mono", weights: [400, 700] },
 	// new-day: fonts are added above this line
 ];
 
