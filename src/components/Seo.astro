@@ -1,0 +1,51 @@
+---
+/**
+ * Every head tag search engines and link previews read: title, description, canonical URL,
+ * Open Graph and Twitter cards. Both the calendar and the Day layout render it, so the tags
+ * stay identical across pages. See README.md#sharing.
+ */
+interface Props {
+	/** Document title, also the Open Graph title unless `socialTitle` is given. */
+	title: string;
+	/** Title for link previews when the document title carries extra context. */
+	socialTitle?: string;
+	description: string;
+	/** Preview image, as a path under public/. Defaults to the shared site image. */
+	image?: { src: string; alt: string; width: number; height: number; type: string };
+}
+
+const DEFAULT_IMAGE = {
+	src: "/weird-web-october-og-image.png",
+	alt: "The words “weird web october” in pink, smeared and glitched across a dark, scratched, photocopied texture.",
+	width: 1200,
+	height: 630,
+	type: "image/png",
+};
+
+const { title, socialTitle = title, description, image = DEFAULT_IMAGE } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const imageUrl = new URL(image.src, Astro.site);
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+
+<meta property="og:site_name" content="Weird Web October 2026" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content={socialTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={imageUrl} />
+<meta property="og:image:secure_url" content={imageUrl} />
+<meta property="og:image:type" content={image.type} />
+<meta property="og:image:width" content={String(image.width)} />
+<meta property="og:image:height" content={String(image.height)} />
+<meta property="og:image:alt" content={image.alt} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={socialTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageUrl} />
+<meta name="twitter:image:alt" content={image.alt} />
