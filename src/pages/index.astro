@@ -25,6 +25,13 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 			content="A small, weird website every day of October 2026. There's a cat hidden on every one."
 		/>
 		<link rel="canonical" href={new URL("/", Astro.site)} />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="Weird Web October 2026" />
+		<meta
+			property="og:description"
+			content="A small, weird website every day of October 2026. There's a cat hidden on every one."
+		/>
+		<meta property="og:url" content={new URL("/", Astro.site)} />
 		<Font cssVariable="--font-rubik-mono-one" preload />
 		<Font cssVariable="--font-space-mono" preload />
 	</head>

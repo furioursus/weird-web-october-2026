@@ -50,6 +50,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 		<title>{title}</title>
 		{description && <meta name="description" content={description} />}
 		<link rel="canonical" href={canonical} />
+		<meta property="og:type" content="website" />
 		<meta property="og:title" content={title} />
 		{description && <meta property="og:description" content={description} />}
 		<meta property="og:url" content={canonical} />

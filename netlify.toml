@@ -4,3 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+[[redirects]]
+  from = "https://weird-web-october-2026.netlify.app/*"
+  to = "https://weirdweb.furioursus.dev/:splat"
+  status = 301
+  force = true

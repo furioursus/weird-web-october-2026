@@ -1,3 +1,4 @@
+import sitemap from "@astrojs/sitemap";
 import { defineConfig, fontProviders } from "astro/config";
 import { cssVariableFor, DEFAULT_STYLES, DEFAULT_WEIGHTS, FONTS } from "./src/fonts";
 
@@ -10,6 +11,7 @@ export default defineConfig({
 	site: SITE,
 	compressHTML: true,
 	trailingSlash: "always",
+	integrations: [sitemap()],
 	fonts: FONTS.map(({ name, weights = DEFAULT_WEIGHTS, styles = DEFAULT_STYLES }) => ({
 		provider: fontProviders.fontsource(),
 		name,
