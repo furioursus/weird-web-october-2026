@@ -48,8 +48,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 			<ol class="calendar" role="list">
 				{WEEKDAYS.map((d) => <li class="weekday" aria-hidden="true">{d}</li>)}
 				{Array.from({ length: LEADING_BLANKS }, () => <li class="blank" aria-hidden="true" />)}
-				{
-					DAYS.map((day) => (
+				{DAYS.map((day) => (
 						<li class="day" data-date={day.date} data-day={day.number}>
 							{built.has(day.slug) ? (
 								<a href={`/${day.slug}/`}>
@@ -67,8 +66,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 								</div>
 							)}
 						</li>
-					))
-				}
+					))}
 			</ol>
 		</main>
 
@@ -91,204 +89,205 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 		</svg>
 
 		<script>
-			// Circle today (New York time) once October arrives.
-			const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(
-				new Date(),
-			);
-			document.querySelector(`.day[data-date="${today}"]`)?.classList.add("is-today");
+		// Circle today (New York time) once October arrives.
+		const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(
+			new Date(),
+		);
+		document.querySelector(`.day[data-date="${today}"]`)?.classList.add("is-today");
 
-			// Mark days whose cat this visitor has found.
-			let found: Record<string, string> = {};
-			try {
-				found = JSON.parse(localStorage.getItem("wwo:cats") ?? "{}");
-			} catch {
-				// Storage unavailable; the tally stays hidden.
+		// Mark days whose cat this visitor has found.
+		let found: Record<string, string> = {};
+		try {
+			found = JSON.parse(localStorage.getItem("wwo:cats") ?? "{}");
+		} catch {
+			// Storage unavailable; the tally stays hidden.
+		}
+		const count = Object.keys(found).length;
+		for (const day of Object.keys(found)) {
+			document.querySelector(`.day[data-day="${day}"]`)?.classList.add("has-cat");
+		}
+		if (count > 0) {
+			const tally = document.querySelector<HTMLElement>(".tally");
+			const n = tally?.querySelector("[data-found]");
+			if (tally && n) {
+				n.textContent = String(count);
+				tally.hidden = false;
 			}
-			const count = Object.keys(found).length;
-			for (const day of Object.keys(found)) {
-				document.querySelector(`.day[data-day="${day}"]`)?.classList.add("has-cat");
-			}
-			if (count > 0) {
-				const tally = document.querySelector<HTMLElement>(".tally");
-				const n = tally?.querySelector("[data-found]");
-				if (tally && n) {
-					n.textContent = String(count);
-					tally.hidden = false;
-				}
-			}
+		}
 		</script>
 	</body>
 </html>
 
 <style>
-	:root {
-		--ink: #0b0b0c;
-		--pink: #ff2e93;
-		--dim: #6b6470;
-		--paper: #f4eef2;
-		--head-font: var(--font-rubik-mono-one), sans-serif;
-		--body-font: var(--font-space-mono), monospace;
-		color-scheme: dark;
-	}
-	* {
-		box-sizing: border-box;
-	}
-	body {
-		margin: 0;
-		padding: clamp(1rem, 4vw, 3rem);
-		min-block-size: 100dvh;
-		background: var(--ink);
-		color: var(--paper);
-		font: 16px/1.5 var(--body-font);
-	}
-	/* photocopy grain over the whole page */
-	body::before {
-		content: "";
-		position: fixed;
-		inset: 0;
-		z-index: 10;
-		pointer-events: none;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-		opacity: 0.22;
-		mix-blend-mode: overlay;
-	}
-	h1 {
-		margin: 0;
-		font-family: var(--head-font);
-		font-size: clamp(2rem, 7vw, 4.5rem);
-		line-height: 0.95;
-		letter-spacing: -0.02em;
-		text-transform: uppercase;
-		text-shadow: 3px 2px 0 rgb(255 46 147 / 0.35);
-	}
-	h1 span {
-		color: var(--pink);
-	}
-	header p {
-		max-inline-size: 60ch;
-		color: var(--dim);
-	}
-	.tally strong {
-		color: var(--pink);
-	}
-	a {
-		color: var(--pink);
+:root {
+	--ink: #0b0b0c;
+	--pink: #ff2e93;
+	--dim: #6b6470;
+	--paper: #f4eef2;
+	--head-font: var(--font-rubik-mono-one), sans-serif;
+	--body-font: var(--font-space-mono), monospace;
+	color-scheme: dark;
+}
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	padding: clamp(1rem, 4vw, 3rem);
+	min-block-size: 100dvh;
+	background: var(--ink);
+	color: var(--paper);
+	font: 16px / 1.5 var(--body-font);
+}
+/* photocopy grain over the whole page */
+body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	z-index: 10;
+	pointer-events: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+	opacity: 0.22;
+	mix-blend-mode: overlay;
+}
+h1 {
+	margin: 0;
+	font-family: var(--head-font);
+	font-size: clamp(2rem, 7vw, 4.5rem);
+	line-height: 0.95;
+	letter-spacing: -0.02em;
+	text-transform: uppercase;
+	text-shadow: 3px 2px 0 rgb(255 46 147 / 0.35);
+}
+h1 span {
+	color: var(--pink);
+}
+header p {
+	max-inline-size: 60ch;
+	color: var(--dim);
+}
+.tally strong {
+	color: var(--pink);
+}
+a {
+	color: var(--pink);
+}
+.calendar {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 11px;
+	margin: 2rem 0;
+	padding: 0;
+	list-style: none;
+}
+.weekday {
+	padding-block-end: 0.25rem;
+	font-size: 0.75rem;
+	color: var(--dim);
+	text-transform: uppercase;
+}
+
+/* each day is a torn paper scrap: a pale fringe (::before) behind the face (::after) */
+.day > * {
+	--face: #1a171d;
+	--edge: #2e2a33;
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	aspect-ratio: 1;
+	padding: 0.5rem;
+	text-decoration: none;
+}
+.day > *::before,
+.day > *::after {
+	content: "";
+	position: absolute;
+	z-index: -1;
+	inset: 0;
+	background: var(--face);
+	filter: url(#torn-1);
+}
+.day > *::before {
+	inset: -3px;
+	background: var(--edge);
+}
+.day:nth-child(2n) > *::before,
+.day:nth-child(3n) > *::after {
+	filter: url(#torn-2);
+}
+.day:nth-child(3n) > * {
+	rotate: 1deg;
+}
+.day:nth-child(4n) > * {
+	rotate: -1.2deg;
+}
+.day:nth-child(5n + 1) > * {
+	rotate: 0.6deg;
+}
+.day a {
+	--face: var(--pink);
+	--edge: var(--paper);
+	color: var(--ink);
+	transition: rotate 0.15s;
+}
+.day a:hover,
+.day a:focus-visible {
+	rotate: -3deg;
+}
+.locked {
+	color: var(--dim);
+}
+.num {
+	font-family: var(--head-font);
+	font-size: clamp(1rem, 3vw, 1.75rem);
+}
+.theme {
+	font-size: clamp(0.55rem, 1.4vw, 0.8rem);
+	overflow-wrap: anywhere;
+}
+
+/* today's date circled in marker: pink on an unbuilt scrap, black on a built one */
+.date {
+	position: relative;
+}
+.is-today .date::before {
+	content: "";
+	position: absolute;
+	inset: -0.5em -0.7em -0.45em -0.6em;
+	rotate: -7deg;
+	background: var(--pink);
+	mask:
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 70' preserveAspectRatio='none'%3E%3Cpath d='M82 10C60 0 14 3 6 29C0 50 31 67 61 63C90 59 98 40 93 23C88 9 66 2 38 12' fill='none' stroke='%23000' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+		center / 100% 100% no-repeat;
+	pointer-events: none;
+}
+.is-today a .date::before {
+	background: var(--ink);
+}
+
+.has-cat .num::after {
+	content: " 🐈‍⬛";
+	font-size: 0.6em;
+}
+.filters {
+	position: absolute;
+	inline-size: 0;
+	block-size: 0;
+}
+@media (max-width: 480px) {
+	.weekday,
+	.blank {
+		display: none;
 	}
 	.calendar {
-		display: grid;
-		grid-template-columns: repeat(7, minmax(0, 1fr));
-		gap: 11px;
-		margin: 2rem 0;
-		padding: 0;
-		list-style: none;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
-	.weekday {
-		padding-block-end: 0.25rem;
-		font-size: 0.75rem;
-		color: var(--dim);
-		text-transform: uppercase;
-	}
-
-	/* each day is a torn paper scrap: a pale fringe (::before) behind the face (::after) */
-	.day > * {
-		--face: #1a171d;
-		--edge: #2e2a33;
-		position: relative;
-		isolation: isolate;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-between;
-		aspect-ratio: 1;
-		padding: 0.5rem;
-		text-decoration: none;
-	}
-	.day > *::before,
-	.day > *::after {
-		content: "";
-		position: absolute;
-		z-index: -1;
-		inset: 0;
-		background: var(--face);
-		filter: url(#torn-1);
-	}
-	.day > *::before {
-		inset: -3px;
-		background: var(--edge);
-	}
-	.day:nth-child(2n) > *::before,
-	.day:nth-child(3n) > *::after {
-		filter: url(#torn-2);
-	}
-	.day:nth-child(3n) > * {
-		rotate: 1deg;
-	}
-	.day:nth-child(4n) > * {
-		rotate: -1.2deg;
-	}
-	.day:nth-child(5n + 1) > * {
-		rotate: 0.6deg;
-	}
+}
+@media (prefers-reduced-motion: reduce) {
 	.day a {
-		--face: var(--pink);
-		--edge: var(--paper);
-		color: var(--ink);
-		transition: rotate 0.15s;
+		transition: none;
 	}
-	.day a:hover,
-	.day a:focus-visible {
-		rotate: -3deg;
-	}
-	.locked {
-		color: var(--dim);
-	}
-	.num {
-		font-family: var(--head-font);
-		font-size: clamp(1rem, 3vw, 1.75rem);
-	}
-	.theme {
-		font-size: clamp(0.55rem, 1.4vw, 0.8rem);
-		overflow-wrap: anywhere;
-	}
-
-	/* today's date circled in marker: pink on an unbuilt scrap, black on a built one */
-	.date {
-		position: relative;
-	}
-	.is-today .date::before {
-		content: "";
-		position: absolute;
-		inset: -0.5em -0.7em -0.45em -0.6em;
-		rotate: -7deg;
-		background: var(--pink);
-		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 70' preserveAspectRatio='none'%3E%3Cpath d='M82 10C60 0 14 3 6 29C0 50 31 67 61 63C90 59 98 40 93 23C88 9 66 2 38 12' fill='none' stroke='%23000' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-			center / 100% 100% no-repeat;
-		pointer-events: none;
-	}
-	.is-today a .date::before {
-		background: var(--ink);
-	}
-
-	.has-cat .num::after {
-		content: " 🐈‍⬛";
-		font-size: 0.6em;
-	}
-	.filters {
-		position: absolute;
-		inline-size: 0;
-		block-size: 0;
-	}
-	@media (max-width: 480px) {
-		.weekday,
-		.blank {
-			display: none;
-		}
-		.calendar {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.day a {
-			transition: none;
-		}
-	}
+}
 </style>
