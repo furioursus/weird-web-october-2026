@@ -14,7 +14,7 @@ A small, weird website every day of October, following the [Weird Web October](h
 | `npm run font:typed` | Print the typewriter flaw table; add `-- --write` to regenerate the font (needs [uv](https://docs.astral.sh/uv/)) |
 | `npm run check` | `astro check` plus Biome |
 
-When `new-day` adds a font to `src/fonts.ts`, restart `npm run dev`. Astro only reads the font config at startup, so until then the new page fails with `FontFamilyNotFound`.
+Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only reads the font config at startup, so the new page fails with `FontFamilyNotFound`) and after any `npm install` (the running server can lose track of Sharp and every optimized image fails with `MissingSharp`).
 
 ## How it fits together
 

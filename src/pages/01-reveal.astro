@@ -1,11 +1,13 @@
 ---
-import { Image } from "astro:assets";
+import { getImage, Image } from "astro:assets";
+import pulp from "@/assets/bg-modern-pulp-tgts.webp";
 import hiddenShot from "@/assets/dante-cc-video-hidden.png";
 import revealedShot from "@/assets/dante-cc-video-revealed-brightened.png";
 import HiddenCat from "@/components/HiddenCat.astro";
 import Day from "@/layouts/Day.astro";
 
 const SHOT = { widths: [450, 900], sizes: "(max-width: 32rem) 85vw, 26rem" };
+const paper = await getImage({ src: pulp, format: "webp", width: 1400, quality: 55 });
 
 // Day 1: Reveal
 ---
@@ -15,6 +17,9 @@ const SHOT = { widths: [450, 900], sizes: "(max-width: 32rem) 85vw, 26rem" };
 	description="A leaked incident report, mostly redacted. Lift the bars to find out who's been running the halls at 3 A.M."
 	fonts={["Special Elite Typed", "Stardos Stencil"]}
 >
+	<Fragment slot="head">
+		<style is:inline set:html={`:root { --pulp: url("${paper.src}"); }`} />
+	</Fragment>
 	<main>
 		<article class="memo">
 			<header>
@@ -193,7 +198,7 @@ const SHOT = { widths: [450, 900], sizes: "(max-width: 32rem) 85vw, 26rem" };
 	body {
 		margin: 0;
 		min-block-size: 100dvh;
-		background: var(--bg);
+		background: var(--bg) var(--pulp) center / cover no-repeat fixed;
 		color: var(--ink);
 		font: 17px/1.75 var(--font-special-elite-typed), "Courier New", monospace;
 	}
