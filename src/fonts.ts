@@ -15,14 +15,16 @@ export interface FontFamily {
 	weights?: NonEmpty<number | string>;
 	/** Defaults to ["normal"]. */
 	styles?: NonEmpty<"normal" | "italic" | "oblique">;
+	/** A font file in the repo instead of Fontsource, e.g. a modified font. Single weight and style. */
+	src?: string;
 }
 
 export const FONTS: FontFamily[] = [
 	{ name: "Inter", weights: ["100 900"] },
 	{ name: "Rubik Mono One" },
 	{ name: "Space Mono", weights: [400, 700] },
-	{ name: "Special Elite" },
 	{ name: "Stardos Stencil" },
+	{ name: "Special Elite Typed", src: "./src/assets/fonts/special-elite-typed.woff2" },
 	// new-day: fonts are added above this line
 ];
 

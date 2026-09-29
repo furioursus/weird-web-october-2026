@@ -12,11 +12,22 @@ export default defineConfig({
 	compressHTML: true,
 	trailingSlash: "always",
 	integrations: [sitemap()],
-	fonts: FONTS.map(({ name, weights = DEFAULT_WEIGHTS, styles = DEFAULT_STYLES }) => ({
-		provider: fontProviders.fontsource(),
-		name,
-		cssVariable: cssVariableFor(name),
-		weights,
-		styles,
-	})),
+	fonts: [
+		...FONTS.filter((font) => !font.src).map(
+			({ name, weights = DEFAULT_WEIGHTS, styles = DEFAULT_STYLES }) => ({
+				provider: fontProviders.fontsource(),
+				name,
+				cssVariable: cssVariableFor(name),
+				weights,
+				styles,
+			}),
+		),
+		...FONTS.filter((font) => font.src).map(({ name, src = "" }) => ({
+			provider: fontProviders.local(),
+			name,
+			cssVariable: cssVariableFor(name),
+			// `as never`: Astro only types local-font options in a literal array; see README.md#how-it-fits-together
+			options: { variants: [{ src: [src] }] } as never,
+		})),
+	],
 });
