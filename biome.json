@@ -19,7 +19,11 @@
 		"lineWidth": 100,
 		"expand": "auto"
 	},
-	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
 	"assist": {
 		"actions": {
 			"source": {
@@ -47,7 +51,9 @@
 				"noUselessElse": "error",
 				"useImportType": "error"
 			},
-			"suspicious": { "noExplicitAny": "warn" }
+			"suspicious": {
+				"noExplicitAny": "warn"
+			}
 		}
 	},
 	"javascript": {
@@ -57,7 +63,13 @@
 			"bracketSameLine": false
 		}
 	},
-	"html": { "formatter": { "selfCloseVoidElements": "always" } },
+	"html": {
+		"formatter": {
+			"selfCloseVoidElements": "always",
+			"enabled": true
+		},
+		"experimentalFullSupportEnabled": true
+	},
 	"css": {
 		"parser": {
 			"tailwindDirectives": true
@@ -75,6 +87,29 @@
 					"correctness": {
 						"noUnusedVariables": "off",
 						"noUnusedImports": "off"
+					},
+					"complexity": {
+						"noImportantStyles": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/pages/01-reveal.astro"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"useSemanticElements": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["src/pages/index.astro"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noRedundantRoles": "off"
 					}
 				}
 			}

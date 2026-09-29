@@ -25,6 +25,14 @@ Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only r
 - `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
 - `src/pages/index.astro`: the calendar. A day links up once its page file exists. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
 
+## Formatting
+
+Biome formats and lints everything, including the HTML in `.astro` files: `npm run format` writes, and `npm run check` fails on anything unformatted. Zed uses the same Biome through `.zed/settings.json`, which runs `node_modules/.bin/biome` as an external formatter, so no Zed extension is needed.
+
+- **Full `.astro` formatting is experimental** in Biome 2.5: it needs `html.experimentalFullSupportEnabled` and `html.formatter.enabled` in `biome.json`. On an unformatted file it takes two passes to settle, then stays stable.
+- **Prettier isn't used.** `prettier-plugin-astro` 1.0.0 puts line breaks inside inline elements, which adds visible whitespace (day 1's redaction highlights overhang their words), and it ignores `htmlWhitespaceSensitivity`.
+- **Three lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
+
 ## Days with dev shortcuts
 
 Some days take a `?jump=` query parameter in `npm run dev` to skip ahead while testing. Production builds strip it.

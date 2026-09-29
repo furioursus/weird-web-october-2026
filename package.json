@@ -10,7 +10,8 @@
 		"check": "astro check && biome check",
 		"lint": "biome check --write",
 		"new-day": "node scripts/new-day.mjs",
-		"font:typed": "uv run scripts/misalign-font.py"
+		"font:typed": "uv run scripts/misalign-font.py",
+		"format": "biome format --write"
 	},
 	"dependencies": {
 		"@astrojs/sitemap": "^3.7.4",
