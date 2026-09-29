@@ -21,6 +21,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "Inter", weights: ["100 900"] },
 	{ name: "Rubik Mono One" },
 	{ name: "Space Mono", weights: [400, 700] },
+	{ name: "Special Elite" },
+	{ name: "Stardos Stencil" },
 	// new-day: fonts are added above this line
 ];
 

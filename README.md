@@ -23,6 +23,16 @@ When `new-day` adds a font to `src/fonts.ts`, restart `npm run dev`. Astro only 
 - `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
 - `src/pages/index.astro`: the calendar. A day links up once its page file exists. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
 
+## Days with dev shortcuts
+
+Some days take a `?jump=` query parameter in `npm run dev` to skip ahead while testing. Production builds strip it.
+
+| Day | Parameter | Skips to |
+| --- | --- | --- |
+| 1, Reveal | `?jump=unseal` | Every text redaction lifted, Exhibit A unsealed |
+| 1, Reveal | `?jump=photo` | Exhibit A's cover lifted, Dante still a smudge |
+| 1, Reveal | `?jump=dante` | The reveal and DECLASSIFIED slam, without saving the cat as found |
+
 ## Finding which file renders something
 
 In `npm run dev`, Astro stamps every element in the page body with `data-astro-source-file` and `data-astro-source-loc` (line:column), so the browser's element inspector shows the file an element was typed in. Slotted markup names the page it was written in, not the layout it renders inside. For an opening tag that spans several lines, the line points at its closing `>`. Builds carry none of these attributes.
