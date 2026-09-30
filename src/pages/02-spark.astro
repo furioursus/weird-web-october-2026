@@ -1,0 +1,1199 @@
+---
+import roomSource from "@/assets/02-spark-room.svg?raw";
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 2: Spark
+
+// A shape id picks its class ("chair-5" is a chair); see README.md#day-2s-room
+const CLASSES = [
+	"ceil",
+	"wall-back",
+	"wall-side",
+	"floor",
+	"boards",
+	"fixture",
+	"metal",
+	"trim",
+	"door",
+	"paper",
+	"frame",
+	"bracket",
+	"ceramic",
+	"console",
+	"screen",
+	"curtain",
+	"cubby",
+	"cushion",
+	"blanket",
+	"pot",
+	"papasan",
+	"art",
+	"art-blue",
+	"art-green",
+	"art-yellow",
+	"mirror",
+	"cork",
+	"sisal",
+	"step",
+	"bed",
+	"treepole",
+	"wood",
+	"wood-line",
+	"coat",
+	"shoe",
+	"shelf",
+	"shelf-top",
+	"lampshade",
+	"pinkbox",
+	"books",
+	"chair",
+	"table",
+	"table-top",
+	"yellow",
+	"dice",
+	"redbox",
+	"box",
+	"plaid",
+	"legs",
+	"wire",
+	"vine",
+	"sky",
+	"building",
+	"neighbor",
+	"star",
+	"moon-glow",
+	"rope",
+	"bulb",
+	"basket",
+	"ac",
+	"leaf",
+];
+const NIGHT = new Set(["sky", "building", "neighbor", "star", "moon-glow"]);
+const SPOT_LABELS: Record<string, string> = {
+	bookshelf: "on top of the bookshelf",
+	"shoe-pile": "on the floor by the door",
+	"door-top": "on top of the door",
+	"cat-steps": "up on the cat steps",
+	"scratching-post": "on top of the scratching post",
+	"cat-tree-bed": "in the cat tree bed",
+	"figurine-shelf": "on the shelf with the figurines",
+	"plant-shelf": "on the plant shelf under the window",
+};
+const TARGET_LABELS: Record<string, string> = { "bookshelf-lamp": "lamp on the bookshelf" };
+const GEOMETRY = [
+	"points",
+	"x",
+	"y",
+	"width",
+	"height",
+	"rx",
+	"ry",
+	"cx",
+	"cy",
+	"r",
+	"d",
+	"x1",
+	"y1",
+	"x2",
+	"y2",
+	"transform",
+];
+const FILE = "src/assets/02-spark-room.svg";
+
+const attr = (attrs: string, name: string) =>
+	attrs.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1];
+
+// Only which Illustrator .stN classes are unfilled matters; see README.md#day-2s-room
+const unfilled = new Set<string>();
+const css = roomSource.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
+for (const [, selectors = "", body = ""] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+	if (/fill:\s*none/.test(body)) {
+		for (const s of selectors.split(",")) unfilled.add(s.trim().replace(/^\./, ""));
+	}
+}
+
+interface Shape {
+	tag: string;
+	attrs: string;
+	id: string;
+	groups: string[];
+}
+const shapes: Shape[] = [];
+const stack: string[] = [];
+for (const [, close, tag = "", attrs = "", selfClose] of roomSource.matchAll(
+	/<(\/?)(g|polygon|polyline|rect|circle|ellipse|path|line)\b([^>]*?)(\/?)>/g,
+)) {
+	if (tag === "g") {
+		if (close) stack.pop();
+		else if (!selfClose) stack.push(attr(attrs, "id") ?? "");
+		continue;
+	}
+	shapes.push({ tag, attrs, id: attr(attrs, "id") ?? "", groups: [...stack] });
+}
+
+function classFor({ id, tag, attrs }: Shape) {
+	const match = CLASSES.filter((c) => id === c || id.startsWith(`${c}-`)).sort(
+		(a, b) => b.length - a.length,
+	)[0];
+	if (!match) {
+		const what = id ? `"${id}"` : `an unnamed <${tag}> (${attrs.trim().slice(0, 60)}…)`;
+		throw new Error(
+			`${FILE}: ${what} doesn't start with a known shape name, e.g. "chair-9". Names: ${CLASSES.join(", ")}.`,
+		);
+	}
+	return match;
+}
+
+function render(shape: Shape, layer: "room" | "ambient") {
+	const name = classFor(shape);
+	const line =
+		unfilled.has(attr(shape.attrs, "class") ?? "") || attr(shape.attrs, "fill") === "none";
+	const cls = layer === "room" || NIGHT.has(name) ? name : `${line ? "amb-line" : "amb"} ${name}`;
+	const geometry = GEOMETRY.flatMap((g) => {
+		const v = attr(shape.attrs, g);
+		return v === undefined ? [] : [`${g}="${v}"`];
+	});
+	return `<${shape.tag} class="${cls}" ${geometry.join(" ")}/>`;
+}
+
+const inLayer = (layer: string) => shapes.filter((s) => s.groups[0] === layer);
+const room = inLayer("room");
+const shell = room
+	.filter((s) => s.groups[1] === "room-shell")
+	.map((s) => render(s, "room"))
+	.join("");
+const furniture = room
+	.filter((s) => s.groups[1] !== "room-shell")
+	.map((s) => render(s, "room"))
+	.join("");
+const glass = inLayer("window-and-chandelier");
+const night = glass
+	.filter((s) => s.groups[1] === "night-window")
+	.map((s) => render(s, "ambient"))
+	.join("");
+const inFront = glass
+	.filter((s) => s.groups[1] !== "night-window")
+	.map((s) => render(s, "ambient"))
+	.join("");
+
+// Spot position and size come from the outline's first two points; see README.md#day-2s-room
+const NUM = "(-?(?:\\d+\\.?\\d*|\\.\\d+))";
+const spots = inLayer("tybalt-spots")
+	.filter((s, i, all) => all.findIndex((o) => o.groups[1] === s.groups[1]) === i)
+	.map((s) => {
+		const name = (s.groups[1] ?? "").replace(/^spot-/, "");
+		const m = attr(s.attrs, "d")?.match(new RegExp(`^M${NUM}[ ,]*${NUM}\\s*l${NUM}[ ,]*${NUM}`));
+		const label = SPOT_LABELS[name];
+		if (!m || !label) {
+			throw new Error(
+				`${FILE}: can't read spot-${name}. Keep it as Tybalt's outline, and give it a label in SPOT_LABELS.`,
+			);
+		}
+		const scale = -Number(m[4]) / 14;
+		const w = 64 * scale;
+		const x = Number(m[1]) - 20 * scale + w / 2;
+		const y = Number(m[2]) - 22 * scale + (w * 60) / 64;
+		return { x: Math.round(x), y: Math.round(y), w: Math.round(w), label };
+	});
+const targets = inLayer("spark-targets").map((s) => {
+	const name = s.id.replace(/^spark-/, "");
+	return {
+		name: TARGET_LABELS[name] ?? name.replace(/-/g, " "),
+		at: [Number(attr(s.attrs, "cx")), Number(attr(s.attrs, "cy"))],
+	};
+});
+const first = spots[0];
+if (!first) throw new Error(`${FILE}: the tybalt-spots layer is empty.`);
+const pct = (n: number, of: number) => `${((n / of) * 100).toFixed(3)}%`;
+const catStyle = `--wwo-cat-size: ${pct(first.w, 2000)}; left: ${pct(first.x - first.w / 2, 2000)}; top: ${pct(first.y - (first.w * 60) / 64, 1500)};`;
+---
+
+<Day
+	day={2}
+	description="The power's out at 3 A.M. Shuffle around in wool socks and let the static sparks light the room, a split second at a time."
+	fonts={["Big Shoulders", "DSEG7 Classic"]}
+>
+	<main>
+		<div
+			class="room"
+			tabindex="0"
+			role="application"
+			aria-label="A dark dining room"
+			aria-describedby="how"
+			data-spots={JSON.stringify(spots)}
+			data-targets={JSON.stringify(targets)}
+		>
+			<div class="scene">
+				<svg class="scene-art" viewBox="0 0 2000 1500" overflow="visible" aria-hidden="true">
+					<defs>
+						<radialGradient id="lamp-glow">
+							<stop offset="0" stop-color="#ffe2a8" stop-opacity="0.85" />
+							<stop offset="1" stop-color="#ffe2a8" stop-opacity="0" />
+						</radialGradient>
+					</defs>
+					<Fragment set:html={shell} />
+					<g class="lamp-light">
+						<ellipse cx="1005" cy="380" rx="520" ry="380" fill="url(#lamp-glow)" />
+						<ellipse cx="100" cy="712" rx="190" ry="160" fill="url(#lamp-glow)" />
+					</g>
+					<Fragment set:html={furniture} />
+				</svg>
+
+				<HiddenCat cat="tybalt" day={2} color="var(--tybalt)" style={catStyle} />
+				<div class="glint" aria-hidden="true"></div>
+
+				<svg class="ambient" viewBox="0 0 2000 1500" overflow="visible" aria-hidden="true">
+					<g class="night"><Fragment set:html={night} /></g>
+					<Fragment set:html={inFront} />
+					<text class="clock" x="1072" y="768">12:00</text>
+					<g class="arc"></g>
+				</svg>
+			</div>
+			<div class="dark"></div>
+			<div class="halo" aria-hidden="true"></div>
+		</div>
+
+		<header class="card">
+			<p class="eyebrow">Day 2 · Spark</p>
+			<h1>Power’s out</h1>
+			<p>3:12 A.M. You’re shuffling around in wool socks, and you are not alone in here.</p>
+			<p id="how" class="how">
+				<span class="how--fine">Move around to build a charge. Click to touch something.</span>
+				<span class="how--coarse">Drag around to build a charge. Tap to touch something.</span>
+				<span class="how--keys">Keyboard: arrows shuffle, Enter touches.</span>
+			</p>
+		</header>
+
+		<section class="meter" aria-label="Static charge">
+			<p class="label">Charge · <span data-ready>too little to feel</span></p>
+			<p class="readout">
+				<span class="ghost" aria-hidden="true">88.8</span>
+				<span data-kv>!0.0</span>
+				<span class="unit">kV</span>
+			</p>
+			<div class="bar" aria-hidden="true"><span data-bar></span><i></i></div>
+			<p class="log" role="status" data-log>Shuffle to build a charge.</p>
+		</section>
+	</main>
+</Day>
+
+<script>
+type Pt = [number, number];
+
+const W = 2000;
+const H = 1500;
+const MAX_KV = 25;
+const FEEL_KV = 3;
+const PX_PER_KV = 170;
+const LEAK_KV_PER_S = 1.2;
+const MIN_GAP_MS = 450;
+const BASE_DARK = 1;
+
+interface Spot {
+	x: number;
+	y: number;
+	/** Tybalt's width here; smaller toward the back of the room. */
+	w: number;
+	label: string;
+}
+
+const room = document.querySelector<HTMLElement>(".room");
+const SPOTS: Spot[] = JSON.parse(room?.dataset.spots ?? "[]");
+const CONDUCTORS: { name: string; at: Pt }[] = JSON.parse(room?.dataset.targets ?? "[]");
+const firstSpot = SPOTS[0];
+if (!firstSpot) throw new Error("Day 2 has no spots for Tybalt.");
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const scene = document.querySelector<HTMLElement>(".scene");
+const dark = document.querySelector<HTMLElement>(".dark");
+const arc = document.querySelector<SVGGElement>(".arc");
+const halo = document.querySelector<HTMLElement>(".halo");
+const glint = document.querySelector<HTMLElement>(".glint");
+const catEl = document.querySelector("wwo-cat");
+const catBtn = catEl?.querySelector<HTMLButtonElement>("button");
+const kvText = document.querySelector("[data-kv]");
+const readout = document.querySelector(".readout");
+const ready = document.querySelector("[data-ready]");
+const bar = document.querySelector<HTMLElement>("[data-bar]");
+const log = document.querySelector("[data-log]");
+
+let kv = 0;
+let lastMove = 0;
+let lastZap = Number.NEGATIVE_INFINITY;
+let lit = false;
+let spot: Spot = firstSpot;
+let pointer: Pt | null = null;
+let keyPoint: Pt | null = null;
+catEl?.setAttribute("inert", "");
+if (dark) dark.style.opacity = String(BASE_DARK);
+
+const say = (text: string) => {
+	if (log) log.textContent = text;
+};
+
+function toScene(clientX: number, clientY: number): Pt {
+	const r = scene?.getBoundingClientRect();
+	if (!r) return [0, 0];
+	return [((clientX - r.left) / r.width) * W, ((clientY - r.top) / r.height) * H];
+}
+
+function place(s: Spot) {
+	spot = s;
+	catBtn?.style.setProperty("--wwo-cat-size", `${(s.w / W) * 100}%`);
+	if (glint) glint.style.inlineSize = `${(s.w / W) * 100}%`;
+	for (const el of [catBtn, glint]) {
+		if (!el) continue;
+		el.style.left = `${((s.x - s.w / 2) / W) * 100}%`;
+		el.style.top = `${((s.y - s.w * 0.9375) / H) * 100}%`;
+	}
+}
+
+function visibleSpots() {
+	const r = scene?.getBoundingClientRect();
+	if (!r) return SPOTS;
+	const scale = r.width / W;
+	const hud = [...document.querySelectorAll(".card, .meter, .wwo-nav")].map((el) =>
+		el.getBoundingClientRect(),
+	);
+	const onScreen = SPOTS.filter((s) => {
+		const box = {
+			left: r.left + (s.x - s.w / 2) * scale,
+			right: r.left + (s.x + s.w / 2) * scale,
+			top: r.top + (s.y - s.w) * scale,
+			bottom: r.top + s.y * scale,
+		};
+		return (
+			box.left > 8 && box.top > 8 && box.right < innerWidth - 8 && box.bottom < innerHeight - 8
+		);
+	});
+	const clear = onScreen.filter((s) => {
+		const x = r.left + s.x * scale;
+		const y = r.top + (s.y - s.w / 2) * scale;
+		const pad = (s.w / 2) * scale;
+		return !hud.some(
+			(b) => x + pad > b.left && x - pad < b.right && y + pad > b.top && y - pad < b.bottom,
+		);
+	});
+	return clear.length ? clear : onScreen.length ? onScreen : SPOTS;
+}
+
+function relocate() {
+	const options = visibleSpots().filter((s) => s !== spot);
+	const pick = options[Math.floor(Math.random() * options.length)];
+	if (pick) place(pick);
+}
+
+function bolt(a: Pt, b: Pt, rough: number, depth: number): Pt[] {
+	let pts: Pt[] = [a, b];
+	let spread = Math.hypot(b[0] - a[0], b[1] - a[1]) * rough;
+	for (let i = 0; i < depth; i++) {
+		const next: Pt[] = [a];
+		let prev = a;
+		for (const p of pts.slice(1)) {
+			const [x1, y1] = prev;
+			const [x2, y2] = p;
+			const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+			const off = (Math.random() * 2 - 1) * spread;
+			next.push([(x1 + x2) / 2 - ((y2 - y1) / len) * off, (y1 + y2) / 2 + ((x2 - x1) / len) * off]);
+			next.push(p);
+			prev = p;
+		}
+		pts = next;
+		spread /= 2;
+	}
+	return pts;
+}
+
+const pathOf = (pts: Pt[]) =>
+	`M${pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L")}`;
+
+function drawArc(from: Pt, to: Pt) {
+	if (!arc) return;
+	const main = bolt(from, to, 0.28, 6);
+	const paths = [pathOf(main)];
+	for (let i = 0; i < 2; i++) {
+		const k = Math.floor(main.length * (0.25 + Math.random() * 0.5));
+		const start = main[k];
+		if (!start) continue;
+		const [x, y] = start;
+		const angle =
+			Math.atan2(to[1] - from[1], to[0] - from[0]) + (Math.random() < 0.5 ? -1 : 1) * 0.7;
+		const len = Math.hypot(to[0] - from[0], to[1] - from[1]) * (0.12 + Math.random() * 0.15);
+		paths.push(
+			pathOf(bolt([x, y], [x + Math.cos(angle) * len, y + Math.sin(angle) * len], 0.3, 4)),
+		);
+	}
+	arc.innerHTML = paths
+		.map(
+			(d, i) =>
+				`<path class="glow${i ? " thin" : ""}" d="${d}"/><path class="core${i ? " thin" : ""}" d="${d}"/>`,
+		)
+		.join("");
+}
+
+function nearestConductor(p: Pt) {
+	let best = { name: "", point: p, dist: Number.POSITIVE_INFINITY };
+	for (const c of CONDUCTORS) {
+		const point = c.at;
+		const dist = Math.hypot(point[0] - p[0], point[1] - p[1]);
+		if (dist < best.dist) best = { name: c.name, point, dist };
+	}
+	return best;
+}
+
+function flash(strength: number) {
+	if (!dark) return;
+	const base = lit ? 0 : BASE_DARK;
+	const peak = lit ? 0 : BASE_DARK * (1 - strength) ** 1.3;
+	const hold = 60 + 160 * strength;
+	const fade = 500 + 800 * strength;
+	const rise = reduce ? 300 : 0;
+	const total = rise + (reduce ? hold + 300 : hold) + fade;
+	dark.animate(
+		[
+			{ opacity: base },
+			{ opacity: peak, offset: rise / total },
+			{ opacity: peak, offset: (total - fade) / total },
+			{ opacity: base },
+		],
+		{ duration: total, easing: "ease-out" },
+	);
+	arc?.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], {
+		duration: rise + hold + 220,
+	});
+	if (!lit) {
+		glint?.animate(
+			[{ opacity: 0 }, { opacity: 0.9 * strength + 0.1, offset: 0.15 }, { opacity: 0 }],
+			{ duration: total + 1800, easing: "ease-in" },
+		);
+	}
+}
+
+function zap(clientX: number, clientY: number, onCat: boolean) {
+	const now = performance.now();
+	if (now - lastZap < MIN_GAP_MS) return;
+	if (kv < FEEL_KV) {
+		if (!onCat) say("Nothing. Keep shuffling.");
+		return;
+	}
+	lastZap = now;
+	const strength = Math.min(1, kv / MAX_KV);
+	const from = toScene(clientX, clientY);
+	const target = onCat
+		? { name: "Tybalt", point: [spot.x, spot.y - spot.w / 2] as Pt }
+		: nearestConductor(from);
+	const volts = kv.toFixed(1);
+	kv = 0;
+	catEl?.removeAttribute("inert");
+	if (!onCat && !lit) relocate();
+	drawArc(from, target.point);
+	flash(strength);
+
+	if (onCat) {
+		say(`Zap! ${volts} kV, right into Tybalt. He will be filing a report.`);
+	} else if (lit) {
+		say(`Zap! ${volts} kV off the ${target.name}. Tybalt flinches.`);
+	} else if (strength >= 0.3) {
+		say(`Zap! ${volts} kV off the ${target.name}. For a split second, something ${spot.label}.`);
+	} else {
+		say(`Zap! ${volts} kV off the ${target.name}. Too dim to make anything out.`);
+	}
+}
+
+function powerBack() {
+	if (lit || !dark) return;
+	lit = true;
+	room?.classList.add("is-lit");
+	for (const a of dark.getAnimations()) a.cancel();
+	dark.animate([{ opacity: BASE_DARK }, { opacity: 0 }], {
+		duration: reduce ? 600 : 1400,
+		easing: "ease-in",
+	});
+	dark.style.opacity = "0";
+	say("Found him. The power’s back, and every clock in the house says 12:00.");
+}
+
+document.addEventListener("wwo:cat-found", powerBack);
+
+function render() {
+	const s = kv / MAX_KV;
+	if (kvText) kvText.textContent = kv.toFixed(1).padStart(4, "!");
+	readout?.classList.toggle("is-ready", kv >= FEEL_KV);
+	if (ready) {
+		ready.textContent =
+			kv >= 20 ? "this is going to hurt" : kv >= FEEL_KV ? "you’ll feel it" : "too little to feel";
+	}
+	if (bar) bar.style.inlineSize = `${s * 100}%`;
+	const at = pointer ?? keyPoint;
+	if (halo) {
+		halo.style.opacity = at ? String(0.08 + s * 0.9) : "0";
+		if (at) halo.style.translate = `${at[0]}px ${at[1]}px`;
+		halo.style.scale = String(0.5 + s * 1.6);
+	}
+}
+
+let last = performance.now();
+function tick(t: number) {
+	const dt = (t - last) / 1000;
+	last = t;
+	if (kv > 0 && t - lastMove > 700) kv = Math.max(0, kv - LEAK_KV_PER_S * dt);
+	render();
+	requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function charge(px: number, boost = 1) {
+	kv = Math.min(MAX_KV, kv + (px / PX_PER_KV) * boost);
+	lastMove = performance.now();
+}
+
+room?.addEventListener("pointermove", (event) => {
+	const next: Pt = [event.clientX, event.clientY];
+	if (pointer)
+		charge(
+			Math.hypot(next[0] - pointer[0], next[1] - pointer[1]),
+			event.pointerType === "touch" ? 1.6 : 1,
+		);
+	pointer = next;
+	keyPoint = null;
+});
+room?.addEventListener("pointerleave", () => {
+	pointer = null;
+});
+room?.addEventListener("click", (event) => {
+	const onCat = !!(event.target as Element).closest("wwo-cat");
+	if (event.detail === 0) {
+		const r = catBtn?.getBoundingClientRect();
+		const [x, y] = keyPoint ?? (r ? [r.left + r.width / 2, r.bottom + 80] : [0, 0]);
+		zap(x, y, onCat);
+	} else {
+		zap(event.clientX, event.clientY, onCat);
+	}
+});
+
+const STEP: Record<string, Pt> = {
+	ArrowUp: [0, -1],
+	ArrowDown: [0, 1],
+	ArrowLeft: [-1, 0],
+	ArrowRight: [1, 0],
+};
+room?.addEventListener("keydown", (event) => {
+	if (event.target !== room) return;
+	const step = STEP[event.key];
+	if (step) {
+		event.preventDefault();
+		const size = Math.min(innerWidth, innerHeight) * 0.04;
+		const [x, y] = keyPoint ?? [innerWidth / 2, innerHeight * 0.7];
+		keyPoint = [
+			Math.min(innerWidth - 10, Math.max(10, x + step[0] * size)),
+			Math.min(innerHeight - 10, Math.max(10, y + step[1] * size)),
+		];
+		pointer = null;
+		charge(size, 1.5);
+	} else if (event.key === "Enter" || event.key === " ") {
+		event.preventDefault();
+		const [x, y] = keyPoint ?? [innerWidth / 2, innerHeight * 0.7];
+		zap(x, y, false);
+	}
+});
+
+place(firstSpot);
+relocate();
+
+if (import.meta.env.DEV) {
+	const jump = new URLSearchParams(location.search).get("jump");
+	if (jump === "charge") charge(MAX_KV * PX_PER_KV);
+	if (jump === "lights") powerBack();
+}
+</script>
+
+<style is:global>
+:root {
+	--night: #02030a;
+	--ink: #d9e0ff;
+	--spark: #8fd0ff;
+	--accent: #ff2e93;
+}
+html,
+body {
+	block-size: 100%;
+	overflow: hidden;
+}
+body {
+	margin: 0;
+	background: var(--night);
+	color: var(--ink);
+	font:
+		500 17px / 1.4 var(--font-big-shoulders),
+		system-ui,
+		sans-serif;
+}
+
+.room {
+	--ceil: #c9d3f4;
+	--wall: #b8c4ea;
+	--wall-side: #a5b2e2;
+	--wall-dim: #93a0d4;
+	--floor: #7f8bc0;
+	--floor-2: #6c78ae;
+	--shade: #0d1024;
+	--shade-2: #1c2246;
+	--metal: #e3e8ff;
+	--tybalt: var(--shade);
+	--lamp-light: 0;
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	background: var(--wall);
+	touch-action: none;
+	cursor: crosshair;
+	outline: none;
+}
+.room:focus-visible {
+	box-shadow: inset 0 0 0 3px var(--accent);
+}
+.scene {
+	--w: max(100vw, min(133.334dvh, 180vw));
+	position: absolute;
+	top: calc(50% - var(--w) * 0.375);
+	left: calc(50% - var(--w) / 2);
+	inline-size: var(--w);
+	aspect-ratio: 4 / 3;
+}
+.room.is-lit {
+	--ceil: #efeee7;
+	--wall: #c6ead3;
+	--wall-side: #b4dec3;
+	--wall-dim: #e9e5dc;
+	--floor: #bf9f80;
+	--floor-2: #a98a6c;
+	--metal: #c8ccd2;
+	--tybalt: #f4efe6;
+	--lamp-light: 1;
+}
+.scene-art,
+.ambient {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+	overflow: visible;
+}
+.ambient {
+	z-index: 2;
+	pointer-events: none;
+}
+.scene-art *,
+.ambient * {
+	transition:
+		fill 1.2s,
+		stroke 1.2s;
+}
+
+/* flash: backlit silhouettes */
+.ceil {
+	fill: var(--ceil);
+}
+.wall-back {
+	fill: var(--wall);
+}
+.wall-side {
+	fill: var(--wall-side);
+}
+.floor {
+	fill: var(--floor);
+}
+.boards {
+	fill: none;
+	stroke: var(--floor-2);
+	stroke-width: 3;
+}
+.fixture,
+.metal {
+	fill: var(--metal);
+}
+.art,
+.mirror,
+.door,
+.trim,
+.art-blue,
+.art-yellow,
+.art-green,
+.cork {
+	fill: var(--wall-dim);
+}
+.cubby,
+.table-top {
+	fill: var(--shade-2);
+}
+.frame,
+.curtain,
+.blanket,
+.cushion,
+.console,
+.pot,
+.papasan,
+.sisal,
+.step,
+.bracket,
+.bed,
+.treepole,
+.coat,
+.shoe,
+.wood,
+.lampshade,
+.ceramic,
+.pinkbox,
+.books,
+.shelf,
+.shelf-top,
+.table,
+.chair,
+.box,
+.yellow,
+.paper,
+.redbox,
+.plaid,
+.dice,
+.leaf {
+	fill: var(--shade);
+}
+.legs,
+.wire,
+.vine,
+.wood-line {
+	fill: none;
+	stroke: var(--shade);
+	stroke-linecap: round;
+}
+.legs {
+	stroke-width: 7;
+}
+.wire {
+	stroke-width: 2;
+}
+.vine {
+	stroke-width: 3;
+}
+.wood-line {
+	stroke-width: 6;
+}
+
+/* power back: the room's real colors */
+.room.is-lit .frame,
+.room.is-lit .bracket,
+.room.is-lit .ceramic,
+.room.is-lit .console {
+	fill: #1b1b1d;
+}
+.room.is-lit .mirror {
+	fill: #d7e2dc;
+}
+.room.is-lit .door,
+.room.is-lit .trim,
+.room.is-lit .paper {
+	fill: #f4f2ec;
+}
+.room.is-lit .cubby {
+	fill: #2b3a32;
+}
+.room.is-lit .curtain {
+	fill: #d2cdab;
+}
+.room.is-lit .blanket {
+	fill: #d9648f;
+}
+.room.is-lit .cushion {
+	fill: #c9c9c6;
+}
+.room.is-lit .pot {
+	fill: #b86a45;
+}
+.room.is-lit .papasan {
+	fill: #e2b23a;
+}
+.room.is-lit .sisal {
+	fill: #d8c49c;
+}
+.room.is-lit .step {
+	fill: #ddd6c7;
+}
+.room.is-lit .bed {
+	fill: #c7ab86;
+}
+.room.is-lit .treepole {
+	fill: #86b173;
+}
+.room.is-lit .coat {
+	fill: #222226;
+}
+.room.is-lit .shoe {
+	fill: #2b2626;
+}
+.room.is-lit .wood {
+	fill: #7a5236;
+}
+.room.is-lit .lampshade {
+	fill: #fff4dc;
+}
+.room.is-lit .pinkbox {
+	fill: #e6a9a9;
+}
+.room.is-lit .books {
+	fill: #5c4a5e;
+}
+.room.is-lit .shelf {
+	fill: #1f2b25;
+}
+.room.is-lit .shelf-top {
+	fill: #2a3831;
+}
+.room.is-lit .table {
+	fill: #5e4b3f;
+}
+.room.is-lit .table-top {
+	fill: #7a6454;
+}
+.room.is-lit .chair {
+	fill: #6b5549;
+}
+.room.is-lit .box {
+	fill: #caa57b;
+}
+.room.is-lit .yellow {
+	fill: #e8c22e;
+}
+.room.is-lit .redbox {
+	fill: #b33a3f;
+}
+.room.is-lit .plaid {
+	fill: #43303d;
+}
+.room.is-lit .dice {
+	fill: #1d2a1d;
+}
+.room.is-lit .art-blue {
+	fill: #274a8f;
+}
+.room.is-lit .art-yellow {
+	fill: #e7c94a;
+}
+.room.is-lit .art-green {
+	fill: #4f9a57;
+}
+.room.is-lit .cork {
+	fill: #6d2c34;
+}
+.room.is-lit .legs,
+.room.is-lit .wire {
+	stroke: #1b1b1d;
+}
+.room.is-lit .vine {
+	stroke: #5b8a4c;
+}
+.room.is-lit .wood-line {
+	stroke: #7a5236;
+}
+.lamp-light {
+	opacity: var(--lamp-light);
+	transition: opacity 1.4s;
+}
+
+.dark {
+	position: absolute;
+	z-index: 1;
+	inset: 0;
+	background: var(--night);
+	pointer-events: none;
+}
+
+/* the window at night, and what hangs in front of it */
+.night {
+	opacity: 0.9;
+}
+.sky {
+	fill: #1d2658;
+}
+.building {
+	fill: #111737;
+}
+.neighbor {
+	fill: #ffcf7a;
+	opacity: 0.35;
+}
+.star {
+	fill: #8d9adf;
+}
+.moon-glow {
+	fill: #cfd8ff;
+	filter: drop-shadow(0 0 10px #9fb2ff) drop-shadow(0 0 30px #5d74d8);
+}
+.ambient .amb {
+	fill: var(--night);
+}
+.ambient .amb-line {
+	fill: none;
+	stroke: var(--night);
+	stroke-width: 4;
+	stroke-linecap: round;
+}
+.ambient .amb-line.vine {
+	stroke-width: 2.5;
+}
+.room.is-lit .rope {
+	fill: #9b8566;
+}
+.room.is-lit .basket {
+	fill: #8a5a34;
+}
+.room.is-lit .leaf {
+	fill: #6c9c50;
+}
+.room.is-lit .ac {
+	fill: #eceae4;
+}
+.room.is-lit .screen {
+	fill: #1b1b1d;
+}
+.room.is-lit .amb-line.frame {
+	stroke: #1b1b1d;
+}
+.room.is-lit .bulb {
+	fill: #fff1c9;
+	filter: drop-shadow(0 0 6px #ffd98a);
+}
+.room.is-lit .ambient .amb-line {
+	fill: none;
+}
+.clock {
+	font-family: var(--font-dseg7-classic);
+	font-size: 15px;
+	text-anchor: middle;
+	fill: var(--accent);
+	opacity: 0;
+}
+.is-lit .clock {
+	opacity: 1;
+	animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}
+.arc {
+	opacity: 0;
+	filter: drop-shadow(0 0 6px var(--spark)) drop-shadow(0 0 22px #4b8dff);
+}
+.arc path {
+	fill: none;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.arc .glow {
+	stroke: var(--spark);
+	stroke-width: 9;
+	opacity: 0.55;
+}
+.arc .core {
+	stroke: #fff;
+	stroke-width: 3;
+}
+.arc .thin {
+	stroke-width: 1.5;
+}
+.arc .glow.thin {
+	stroke-width: 5;
+}
+
+.scene .wwo-cat__found {
+	z-index: 3;
+}
+.room.is-lit .wwo-cat.is-found svg {
+	filter: drop-shadow(2px 0 0 var(--accent)) drop-shadow(-2px 0 0 var(--accent))
+		drop-shadow(0 2px 0 var(--accent)) drop-shadow(0 -2px 0 var(--accent));
+}
+.room:not(.is-lit) .wwo-cat__found {
+	opacity: 0;
+}
+.glint {
+	position: absolute;
+	z-index: 2;
+	inline-size: 4.5%;
+	aspect-ratio: 1;
+	opacity: 0;
+	pointer-events: none;
+}
+.glint::before,
+.glint::after {
+	content: "";
+	position: absolute;
+	top: 35%;
+	inline-size: 7%;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	background: #fff4c2;
+	box-shadow: 0 0 6px 2px rgb(255 244 194 / 0.6);
+}
+.glint::before {
+	left: 40%;
+}
+.glint::after {
+	left: 56%;
+}
+
+.halo {
+	position: fixed;
+	z-index: 3;
+	inset: -40px auto auto -40px;
+	inline-size: 80px;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	background: radial-gradient(rgb(160 210 255 / 0.55), rgb(90 140 255 / 0.15) 45%, transparent 70%);
+	opacity: 0;
+	pointer-events: none;
+	mix-blend-mode: screen;
+}
+
+.card,
+.meter {
+	position: fixed;
+	z-index: 1;
+	margin: 0;
+	padding: 0.9rem 1.1rem;
+	background: rgb(3 4 12 / 0.72);
+	border: 1px solid rgb(143 208 255 / 0.18);
+	pointer-events: none;
+}
+.card {
+	inset: 1rem auto auto 1rem;
+	max-inline-size: min(21rem, calc(100vw - 2rem));
+}
+.card p {
+	margin: 0.4rem 0 0;
+}
+.eyebrow {
+	font-size: 0.8rem;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	opacity: 0.7;
+}
+h1 {
+	margin: 0.1rem 0 0;
+	font-size: clamp(2.4rem, 8vw, 3.6rem);
+	font-weight: 900;
+	line-height: 0.9;
+	text-transform: uppercase;
+	color: #fff;
+}
+.how {
+	font-size: 0.9rem;
+	color: var(--spark);
+}
+.how span {
+	display: block;
+}
+.how--coarse {
+	display: none !important;
+}
+@media (pointer: coarse) {
+	.how--fine,
+	.how--keys {
+		display: none !important;
+	}
+	.how--coarse {
+		display: block !important;
+	}
+}
+
+.meter {
+	inset: auto auto 1rem 1rem;
+	inline-size: min(16rem, calc(100vw - 2rem));
+}
+.meter p {
+	margin: 0;
+}
+.label {
+	font-size: 0.8rem;
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
+	opacity: 0.8;
+}
+.readout {
+	display: grid;
+	grid-template-columns: auto auto;
+	justify-content: start;
+	align-items: baseline;
+	gap: 0.4rem;
+	margin-block: 0.3rem !important;
+	font-family: var(--font-dseg7-classic);
+	font-size: 2rem;
+	color: var(--spark);
+}
+.readout .ghost,
+.readout [data-kv] {
+	grid-area: 1 / 1;
+}
+.readout .ghost {
+	opacity: 0.08;
+}
+.readout .unit {
+	font-family: var(--font-big-shoulders);
+	font-size: 1rem;
+	font-weight: 900;
+}
+.readout.is-ready {
+	color: var(--accent);
+}
+.bar {
+	position: relative;
+	block-size: 6px;
+	background: rgb(143 208 255 / 0.15);
+}
+.bar span {
+	display: block;
+	block-size: 100%;
+	inline-size: 0;
+	background: var(--spark);
+}
+.bar i {
+	position: absolute;
+	inset: -3px auto -3px 12%;
+	inline-size: 2px;
+	background: var(--accent);
+}
+.log {
+	margin-block-start: 0.5rem !important;
+	font-size: 0.95rem;
+	min-block-size: 2.6em;
+}
+
+@media (max-width: 30rem) {
+	.card {
+		padding: 0.7rem 0.8rem;
+	}
+	.card p:not(.eyebrow, .how) {
+		font-size: 0.95rem;
+	}
+	.meter {
+		padding: 0.6rem 0.8rem;
+		inline-size: min(13rem, calc(100vw - 2rem));
+	}
+	.readout {
+		font-size: 1.5rem;
+	}
+	.log {
+		font-size: 0.85rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+</style>

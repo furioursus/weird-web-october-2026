@@ -11,6 +11,7 @@
 		"lint": "biome check --write",
 		"new-day": "node scripts/new-day.mjs",
 		"font:typed": "uv run scripts/misalign-font.py",
+		"leaves:pothos": "uv run scripts/reshape-pothos.py",
 		"format": "biome format --write"
 	},
 	"dependencies": {

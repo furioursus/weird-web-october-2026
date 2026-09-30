@@ -12,6 +12,7 @@ A small, weird website every day of October, following the [Weird Web October](h
 | `npm run new-day -- 5 --fonts "Special Elite,Inter"` | Same, with the page's fonts (first is body, second is headings); new ones are added to `src/fonts.ts` |
 | `npm run build` | Build to `dist/` |
 | `npm run font:typed` | Print the typewriter flaw table; add `-- --write` to regenerate the font (needs [uv](https://docs.astral.sh/uv/)) |
+| `npm run leaves:pothos` | List the pothos leaves in day 2's room SVG that would get a new outline; add `-- --write` to save (needs uv) |
 | `npm run check` | `astro check` plus Biome |
 
 Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only reads the font config at startup, so the new page fails with `FontFamilyNotFound`) and after any `npm install` (the running server can lose track of Sharp and every optimized image fails with `MissingSharp`).
@@ -25,13 +26,28 @@ Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only r
 - `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
 - `src/pages/index.astro`: the calendar. A day links up once its page file exists. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
 
+## Day 2's room
+
+Day 2 (Spark) is drawn in Illustrator: `src/assets/02-spark-room.svg` is the one source for the dining room's shapes, Tybalt's hiding spots and the spark targets, and the page reads it at build time, so exporting over that file updates the page.
+
+- **Coordinates** are the reference photo's pixels (2000×1500), in one-point perspective toward the window. The ceiling, wall and floor shapes run far past the artboard so wide and tall screens still show room; leave that overhang.
+- **A shape's id picks its look.** Each id starts with a class name from `CLASSES` in `src/pages/02-spark.astro` (`chair-5` is a `chair`, longest match wins, so `table-top-1` is a `table-top`). The page's CSS colors each class twice: a dark silhouette in the flash, and the room's real colors once the power's back. Illustrator's own colors are ignored; its `.stN` styles only matter for marking unfilled shapes, which become lines (vines, chair legs, hanger cords). An unnamed shape or an unknown name fails the build with the list of valid names.
+- **Top-level groups decide the layer.** `room` draws under the darkness (its `room-shell` sub-group under the lamp glow too). `window-and-chandelier` draws above it, so the window and everything hanging in front of it stay visible at 3 A.M. as silhouettes; its `night-window` sub-group keeps its own colors. `tybalt-spots` and `spark-targets` aren't drawn at all.
+- **Tybalt's spots** are his outline, one `spot-<name>` group per spot. The page reads his position and size from the outline's first two path points (the base of his left ear at 20,22 on a 64-unit cat, then 14 units up), so keep it as that outline and scale it evenly. Each spot name needs a line in `SPOT_LABELS` for the zap log, or the build fails.
+- **Spark targets** are circles named `spark-<name>`. The log names them with dashes as spaces, or from `TARGET_LABELS`.
+- **Pothos leaves** (`leaf-pothos-*`) each get their own outline from `npm run leaves:pothos`. It keeps every leaf's stem (the path's start point), length, direction and width, and picks the outline from the leaf's id, so re-running only changes leaves that are new or copied.
+- **Exporting from Illustrator:** set Object IDs to Layer Names; any styling option works. Delete or hide the photo layer first, and make sure the export has no `<image>`: the committed file must not carry the photo. The working copy with the photo embedded lives in `design/`, which `.git/info/exclude` keeps out of git.
+- **The page's styles are global** (`<style is:global>`), because shapes injected from the SVG don't carry Astro's scope attribute, so scoped rules never reach them. They still load only on day 2.
+- **Flashes are rate-limited** to one per 450 ms, so mashing the mouse can't strobe past 3 flashes a second (WCAG 2.3.1). With reduced motion, a zap fades the room in and out instead.
+
 ## Formatting
 
 Biome formats and lints everything, including the HTML in `.astro` files: `npm run format` writes, and `npm run check` fails on anything unformatted. Zed uses the same Biome through `.zed/settings.json`, which runs `node_modules/.bin/biome` as an external formatter, so no Zed extension is needed.
 
 - **Full `.astro` formatting is experimental** in Biome 2.5: it needs `html.experimentalFullSupportEnabled` and `html.formatter.enabled` in `biome.json`. On an unformatted file it takes two passes to settle, then stays stable.
 - **Prettier isn't used.** `prettier-plugin-astro` 1.0.0 puts line breaks inside inline elements, which adds visible whitespace (day 1's redaction highlights overhang their words), and it ignores `htmlWhitespaceSensitivity`.
-- **Three lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
+- **Four lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noNoninteractiveTabindex` on day 2 (the room is a focusable `role="application"` for arrow-key shuffling, which Biome doesn't count as interactive), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
+- **SVGs in `src/assets` aren't formatted**, so Illustrator exports drop in untouched.
 
 ## Days with dev shortcuts
 
@@ -42,6 +58,8 @@ Some days take a `?jump=` query parameter in `npm run dev` to skip ahead while t
 | 1, Reveal | `?jump=unseal` | Every text redaction lifted, Exhibit A unsealed |
 | 1, Reveal | `?jump=photo` | Exhibit A's cover lifted, Dante still a smudge |
 | 1, Reveal | `?jump=dante` | The reveal and DECLASSIFIED slam, without saving the cat as found |
+| 2, Spark | `?jump=charge` | A full 25 kV charge, ready to zap |
+| 2, Spark | `?jump=lights` | The power back on, without saving the cat as found (Tybalt stays unclickable until a zap) |
 
 ## Finding which file renders something
 

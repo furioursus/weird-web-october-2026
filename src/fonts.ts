@@ -25,6 +25,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "Space Mono", weights: [400, 700] },
 	{ name: "Stardos Stencil" },
 	{ name: "Special Elite Typed", src: "./src/assets/fonts/special-elite-typed.woff2" },
+	{ name: "Big Shoulders", weights: [500, 900] },
+	{ name: "DSEG7 Classic", weights: [700] },
 	// new-day: fonts are added above this line
 ];
 
