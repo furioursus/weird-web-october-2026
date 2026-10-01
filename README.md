@@ -13,6 +13,7 @@ A small, weird website every day of October, following the [Weird Web October](h
 | `npm run build` | Build to `dist/` |
 | `npm run font:typed` | Print the typewriter flaw table; add `-- --write` to regenerate the font (needs [uv](https://docs.astral.sh/uv/)) |
 | `npm run leaves:pothos` | List the pothos leaves in day 2's room SVG that would get a new outline; add `-- --write` to save (needs uv) |
+| `npm run photos:fake` | List day 3's listing crops and whether their source photos are in `design/day-3/`; add `-- --write` to save them (needs uv) |
 | `npm run check` | `astro check` plus Biome |
 
 Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only reads the font config at startup, so the new page fails with `FontFamilyNotFound`) and after any `npm install` (the running server can lose track of Sharp and every optimized image fails with `MissingSharp`).
@@ -39,6 +40,18 @@ Day 2 (Spark) is drawn in Illustrator: `src/assets/02-spark-room.svg` is the one
 - **Exporting from Illustrator:** set Object IDs to Layer Names; any styling option works. Delete or hide the photo layer first, and make sure the export has no `<image>`: the committed file must not carry the photo. The working copy with the photo embedded lives in `design/`, which `.git/info/exclude` keeps out of git.
 - **The page's styles are global** (`<style is:global>`), because shapes injected from the SVG don't carry Astro's scope attribute, so scoped rules never reach them. They still load only on day 2.
 - **Flashes are rate-limited** to one per 450 ms, so mashing the mouse can't strobe past 3 flashes a second (WCAG 2.3.1). With reduced motion, a zap fades the room in and out instead.
+
+## Day 3's marketplace
+
+Day 3 (Fake) is FURMU, a knockoff marketplace in the style of Temu that sells counterfeit cats: real photos of Tybalt and Dante, badly listed. Every listing is a decoy; the one real cat is Dante's photo in the one-star review. It's set in Rubik, with Schoolbell for the crayon badge.
+
+- **Photos** are my own photos of the cats, and the originals stay out of the repo. My working copies live in `design/day-3/` (git-excluded) with all metadata stripped, because the originals carry GPS coordinates for my home. `scripts/crop-listings.py` (`npm run photos:fake`) cuts the square product shots into `src/assets/03-fake/`; its `CROPS` table places each crop by its top-left corner and side as fractions of the photo, plus quarter turns (`darnte-reversible` is rotated 180°). Saving drops metadata again, and I placed the crops to keep people in the background out of frame. Astro then ships only optimized WebP.
+- **The prize wheel** is a native `<dialog>` that opens 1.5 s after load, once per browser session (`sessionStorage` key `wwo:furmu-wheel`). It's rigged by the `SPINS` table: spins 1 and 2 stop just inside FREE CAT* and $100 COUPON, then crawl over the line into SPIN AGAIN; spin 3 pays out FREE CAT* and adds it to the cart. The close × dodges a mouse three times, then gives up ("fine."); keyboard focus never dodges. Escape or × goes to a confirmshaming step first, and a second Escape closes. Closing starts the coupon countdown, which resets to 09:59 with "EXTENDED!" every time it runs out.
+- **The big orange buttons' 3D lip is a `border-bottom`, not an offset shadow,** and their focus ring is a `box-shadow` ring. Both are deliberate: an outline on the breathing (scaling) button breaks apart in Firefox, and a ring drawn around a shadow lip runs through it.
+- **The search bar and cart are flimsy.** Clicking either (or submitting the search) creaks it down on one screw, then drops it off the page. The fall animates a `position: fixed` copy so it never adds page scroll, and the empty spot stays. The creak is synthesized in Web Audio from the `CREAK` keyframes, one burst per downward jerk: a jittery pulse train (its rate is the pitch) ringing four wooden-door resonances in `DOOR_MODES`. Lower `low`/`high` in `creakSound()` for a deeper groan, raise them for a squeak. Screen readers hear "The cart fell off the page."
+- **Decoys:** each listing photo is a button ("Is this cat real?") that stamps it COUNTERFEIT and counts down the fakes in a toast; stamping all 12 points to the reviews. Only the transparent `HiddenCat` hotspot on Dante's face in the review photo counts for the tally.
+- **Fake signals:** "N people viewing" wanders every 2–5 s and shows its own `Math.random()` code on hover, focus or tap (Escape hides it); the Mystery Box's "Only 3 left" climbs by one every 6 s; the perks strip promises delivery in "7–29 business lives". The crayon "Verified Purchase" badge is Schoolbell roughened by the inline `#crayon` SVG filter.
+- **Bad-shop gags** are per-listing `fx` values: `led` (glowing dots placed on Darnte's pupils), `stretch`, `watermark` and `sticker`.
 
 ## Scheduled releases
 
@@ -70,6 +83,8 @@ Some days take a `?jump=` query parameter in `npm run dev` to skip ahead while t
 | 1, Reveal | `?jump=dante` | The reveal and DECLASSIFIED slam, without saving the cat as found |
 | 2, Spark | `?jump=charge` | A full 25 kV charge, ready to zap |
 | 2, Spark | `?jump=lights` | The power back on, without saving the cat as found (Tybalt stays unclickable until a zap) |
+| 3, Fake | `?jump=wheel` | The prize wheel opens at once, even if it was already shown this session |
+| 3, Fake | `?jump=shop` | Straight to the shop with the coupon countdown running, no wheel |
 
 ## Finding which file renders something
 

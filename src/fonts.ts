@@ -27,6 +27,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "Special Elite Typed", src: "./src/assets/fonts/special-elite-typed.woff2" },
 	{ name: "Big Shoulders", weights: [500, 900] },
 	{ name: "DSEG7 Classic", weights: [700] },
+	{ name: "Rubik", weights: ["300 900"] },
+	{ name: "Schoolbell" },
 	// new-day: fonts are added above this line
 ];
 
