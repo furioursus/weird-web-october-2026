@@ -53,6 +53,20 @@ Day 3 (Fake) is FURMU, a knockoff marketplace in the style of Temu that sells co
 - **Fake signals:** "N people viewing" wanders every 2–5 s and shows its own `Math.random()` code on hover, focus or tap (Escape hides it); the Mystery Box's "Only 3 left" climbs by one every 6 s; the perks strip promises delivery in "7–29 business lives". The crayon "Verified Purchase" badge is Schoolbell roughened by the inline `#crayon` SVG filter.
 - **Bad-shop gags** are per-listing `fx` values: `led` (glowing dots placed on Darnte's pupils), `stretch`, `watermark` and `sticker`.
 
+## Day 4's Tybalgotchi
+
+Day 4 (Plastic) is the Tybalgotchi, a 1998 virtual pet in translucent grape plastic. Tybalt lives on its screen and does what the real one does: the moment he's even a little hungry, he skips the kibble and goes for plastic, and eventually that includes the toy itself. It's set in Chewy, with Nunito for everything else.
+
+- **The toy is one inline SVG,** drawn in the page: the shell, the circuit board and parts you can see through the plastic, the faceplate and the LCD glass. The live screen (`<canvas class="lcd">`), the printed icons, the A/B/C buttons, the reset pinhole and the battery tab are HTML laid over it, placed by percentages of the SVG's 320×360 viewBox, so moving something in the SVG means moving its overlay too.
+- **The screen is a 32×16 dot matrix** drawn on the canvas, with short ghosting like a real LCD (the 40 ms fade in `paint()`; longer smears the vet's scrolling text). Sprites and the 3×5 pixel font are `#`/`.` strings in the page script: `TYBALT` is him facing right, with filled ears and tail tip for his colored points, and `CAT` derives the blink, walk, happy and chomp frames from it.
+- **Hunger:** one game tick is 320 ms (`TICK`). He loses a heart every 9 s (`HUNGER_EVERY`); below 4 hearts he picks a target, walks toward it one dot every other tick, and eats it. Plastic never fills him, so he goes straight for the next thing. Kibble adds a heart, and at 4 hearts he forgets the target. Menus, status and the vet pause him.
+- **Bites:** every third target is the toy itself. He walks off the edge of the screen and a bite comes out of the real shell: three circles in the `#bites` mask, plus the same circles stroked in `.bite-lips` for the stress-whitened edge. `BITES` lists the six spots as fractions of the way around the outline (0 is the top, clockwise); after six, he sticks to other plastic.
+- **Saving:** `localStorage` key `wwo:tybalgotchi` holds whether he's hatched, which bites are taken and the ingestion log, which the patient chart lists. Coming back skips the egg and starts him at 3 hearts. The reset pinhole clears it all and goes back to the egg. The sound toggle is saved under `wwo:tybalgotchi-sound`.
+- **Sound** is synthesized in Web Audio and only starts after a click: quiet square-wave piezo beeps, three for "he's spotted something", and a filtered noise burst per chomp (sharper when he's biting the shell).
+- **Controls:** A cycles the icons (feed, play, vet, status), B chooses, C cancels; the A, B and C keys work too. Feed offers kibble or a bag (the bag goes in the log). Play drops a toy in its packaging, and he eats the packaging. The vet scrolls "DX: GROSS, WEIRD CAT" with the plastic count. Screen readers get the caption under the toy and a hidden status line for menu changes.
+- **The hidden cat** is Tybalt's outline printed on the circuit board (silkscreen `TB1`), left of the screen and seen through the plastic, with a transparent `HiddenCat` hotspot over it. It sits between bite spots, so no bite ever covers it.
+- **Reduced motion** drops the shell shake, the plastic crumbs and the battery tab's fall; the screen still animates.
+
 ## Scheduled releases
 
 Each day goes live at midnight New York time on its date, on its own. I push a finished day to `main` whenever it's ready, and production builds hold it back until then. A nightly GitHub Action rebuilds the site just after midnight so the new day appears.
@@ -85,6 +99,9 @@ Some days take a `?jump=` query parameter in `npm run dev` so I can skip ahead w
 | 2, Spark | `?jump=lights` | The power back on, without saving the cat as found (Tybalt stays unclickable until a zap) |
 | 3, Fake | `?jump=wheel` | The prize wheel opens at once, even if it was already shown this session |
 | 3, Fake | `?jump=shop` | Straight to the shop with the coupon countdown running, no wheel |
+| 4, Plastic | `?jump=hatched` | Hatched and remotely hungry, as if coming back to him |
+| 4, Plastic | `?jump=hungry` | Hatched at 1 heart, already going for plastic |
+| 4, Plastic | `?jump=chewed` | Every bite taken out of the shell, without saving them |
 
 ## Finding which file renders something
 

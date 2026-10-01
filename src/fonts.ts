@@ -29,6 +29,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "DSEG7 Classic", weights: [700] },
 	{ name: "Rubik", weights: ["300 900"] },
 	{ name: "Schoolbell" },
+	{ name: "Nunito", weights: ["200 900"] },
+	{ name: "Chewy" },
 	// new-day: fonts are added above this line
 ];
 
