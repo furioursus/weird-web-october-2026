@@ -31,6 +31,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "Schoolbell" },
 	{ name: "Nunito", weights: ["200 900"] },
 	{ name: "Chewy" },
+	{ name: "Instrument Sans", weights: ["400 700"] },
+	{ name: "Fredoka", weights: ["300 700"] },
 	// new-day: fonts are added above this line
 ];
 

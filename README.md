@@ -71,6 +71,21 @@ Day 4 (Plastic) is the Tybalgotchi, a 1998 virtual pet in translucent grape plas
 - **The hidden cat** is Tybalt's outline printed on the circuit board (silkscreen `TB1`), left of the screen and seen through the plastic, with a transparent `HiddenCat` hotspot over it. It sits between bite spots, so no bite ever covers it.
 - **Reduced motion** drops the shell shake, the plastic crumbs and the battery tab's fall; the screen still animates.
 
+## Day 5's Cellmates
+
+Day 5 (Sheet) is Cellmates, a perfectly ordinary spreadsheet holding a snack budget, except every filled cell has a face. The faces follow the pointer, blink, and take their mood from the data; sorting makes them hop into line. It's set in Instrument Sans, with Fredoka for the logo and the little messages. Nothing is saved, so a reload resets the sheet.
+
+- **The grid is built at build time:** 20 columns by 50 rows of `.cell` divs, laid out with CSS grid. It's an ARIA grid: focus stays on the grid, and `aria-activedescendant` points at the selected cell. The selection box, the in-cell editor and the fill preview are overlays positioned from the cells' offsets. The row height lives in two places, `--row-h` in the CSS and `ROW_H` in the script, and they have to match or the fill animation lands off by a row.
+- **Formulas** run through a small evaluator in the page: `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `ROUND` and `RAND`, plus `+ - * /`, cell references, ranges and `$` anchors. Errors show as `#CIRC!`, `#DIV/0!`, `#REF!`, `#VALUE!`, `#NAME?` or `#ERROR!`. Every change recomputes the whole sheet. A `RAND` cell re-rolls every 1.8 s (`RAND_EVERY`), and every cell whose value changes hops with a little "oh!", rippling out from where the change started.
+- **Moods** come from `moodOf()`: errors are dizzy, `RAND` cells are giddy, negatives are worried, zeros are asleep, the biggest and smallest numbers in a column are proud and shy (both blush, and only once the column has at least three numbers), other formulas look pleased with themselves, and everything else is content. The screen reader announcement for a cell includes its mood.
+- **The faces are pure CSS:** two eye dots, a bordered mouth and blush pseudo-elements, drawn at 1× sizes and scaled up with `zoom: 1.9` on `.face`. Each mood restyles them through `data-mood`. The eyes follow the pointer through `--lx` and `--ly`; with no pointer (touch, or the pointer off the page) they watch the selected cell. Selecting a cell makes its neighbors lean in. Selecting a formula turns the cells it reads pink, and they all look at it.
+- **Each cell's contents have an identity,** so a face travels with its value. Sort A→Z and Z→A sort the table (the header row's width, down to the first blank row) by the selected column; each face flies to its new row in a hop, then the sorted column does a wave. Formulas in moved rows have their relative references shifted by the same number of rows (`shiftRefs()`).
+- **The fill handle** hatches new cells one by one out of the source cell: numbers count up by one, formulas shift their references, and text copies. Shift+↓ fills one cell from the keyboard. Σ Sum puts a `SUM` of the numbers directly above into the selected cell.
+- **Keys:** arrows move, typing starts an edit, Enter or F2 edits, Enter and Tab commit and move, Escape cancels, and Delete or Backspace tucks a cell in (it falls asleep and fades out).
+- **The hidden cat** is Dante, curled up in cell R44, well off the first screen. Selecting R44 announces that something is curled up in there.
+- **Reduced motion** drops the hops, leans, hatching and sort flights; the faces still change mood.
+- **Lint:** the grid's ARIA roles trip two Biome rules, which are off for this page only (see [Formatting](#formatting)).
+
 ## Scheduled releases
 
 Each day goes live at midnight New York time on its date, on its own. I push a finished day to `main` whenever it's ready, and production builds hold it back until then. A nightly GitHub Action rebuilds the site just after midnight so the new day appears.
@@ -87,7 +102,7 @@ Biome formats and lints everything, including the HTML in `.astro` files: `npm r
 
 - **Full `.astro` formatting is experimental** in Biome 2.5: it needs `html.experimentalFullSupportEnabled` and `html.formatter.enabled` in `biome.json`. On an unformatted file it takes two passes to settle, then stays stable.
 - **I don't use Prettier.** `prettier-plugin-astro` 1.0.0 puts line breaks inside inline elements, which adds visible whitespace (day 1's redaction highlights overhang their words), and it ignores `htmlWhitespaceSensitivity`.
-- **Four lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noNoninteractiveTabindex` on day 2 (the room is a focusable `role="application"` for arrow-key shuffling, which Biome doesn't count as interactive), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
+- **Some lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noNoninteractiveTabindex` on day 2 (the room is a focusable `role="application"` for arrow-key shuffling, which Biome doesn't count as interactive), `a11y/useSemanticElements` and `a11y/useFocusableInteractive` on day 5 (the sheet is an ARIA grid whose cells are reached through `aria-activedescendant`, so they aren't focusable themselves, and a real `<table>` laid out with CSS grid risks losing its table semantics in Safari), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
 - **SVGs in `src/assets` aren't formatted**, so Illustrator exports drop in untouched.
 
 ## Days with dev shortcuts
