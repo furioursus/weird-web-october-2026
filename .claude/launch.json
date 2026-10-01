@@ -6,6 +6,12 @@
 			"runtimeExecutable": "npm",
 			"runtimeArgs": ["run", "dev"],
 			"port": 4321
+		},
+		{
+			"name": "weird-web-build-preview",
+			"runtimeExecutable": "npx",
+			"runtimeArgs": ["astro", "preview", "--port", "4329"],
+			"port": 4329
 		}
 	]
 }

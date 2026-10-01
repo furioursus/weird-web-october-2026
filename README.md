@@ -19,12 +19,12 @@ Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only r
 
 ## How it fits together
 
-- `src/data/days.ts`: the 31 themes, in order. Theme names double as Octothorpes hashtags, so they match the official list exactly.
+- `src/data/days.ts`: the 31 themes, in order, and `isReleased()`, which decides whether a day is out yet (see [Scheduled releases](#scheduled-releases)). Theme names double as Octothorpes hashtags, so they match the official list exactly.
 - `src/fonts.ts`: every font the site uses. They're self-hosted through Astro's Fonts API with the Fontsource provider, so nothing loads from Google's CDN. Each font is exposed as a CSS variable, e.g. `var(--font-special-elite)`. An entry with `src` is a font file in the repo, served by Astro's local provider instead of Fontsource. `astro.config.ts` casts those entries' options `as never`, because Astro can only type local-font options in a literal array, not a mapped one.
 - `src/assets/fonts/special-elite-typed.woff2`: "Special Elite Typed", day 1's body font. It's Special Elite (Apache 2.0, from `@fontsource/special-elite`) with a few glyphs shifted up or down by a fixed amount, like bent typebars, and its hinting removed. `scripts/misalign-font.py` builds it; edit the `FLAWS` table there (offsets in px at 17px) and run `npm run font:typed -- --write`, then restart `npm run dev`.
-- `src/layouts/Day.astro`: the shared shell. It renders the head tags through `src/components/Seo.astro`, adds both Octothorpes tags, loads only the fonts the page asks for, and renders a small prev/next nav. It ships no visual styles.
+- `src/layouts/Day.astro`: the shared shell. It renders the head tags through `src/components/Seo.astro`, adds both Octothorpes tags, loads only the fonts the page asks for, and renders a small prev/next nav that only links to days that are built and released. It ships no visual styles.
 - `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
-- `src/pages/index.astro`: the calendar. A day links up once its page file exists. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
+- `src/pages/index.astro`: the calendar. A day links up once its page file exists and it's released. It's styled as a photocopied zine in Rubik Mono One and Space Mono: each day is a torn paper scrap (two layers roughened by the inline `#torn-1` / `#torn-2` SVG filters), built days are pink, today's date is circled in marker (New York time), and a grain overlay covers the page.
 
 ## Day 2's room
 
@@ -39,6 +39,16 @@ Day 2 (Spark) is drawn in Illustrator: `src/assets/02-spark-room.svg` is the one
 - **Exporting from Illustrator:** set Object IDs to Layer Names; any styling option works. Delete or hide the photo layer first, and make sure the export has no `<image>`: the committed file must not carry the photo. The working copy with the photo embedded lives in `design/`, which `.git/info/exclude` keeps out of git.
 - **The page's styles are global** (`<style is:global>`), because shapes injected from the SVG don't carry Astro's scope attribute, so scoped rules never reach them. They still load only on day 2.
 - **Flashes are rate-limited** to one per 450 ms, so mashing the mouse can't strobe past 3 flashes a second (WCAG 2.3.1). With reduced motion, a zap fades the room in and out instead.
+
+## Scheduled releases
+
+Each day goes live at midnight New York time on its date, on its own: push a finished day to `main` whenever it's ready, and production builds hold it back until then. A nightly GitHub Action rebuilds the site just after midnight so the new day appears.
+
+- **The gate:** `isReleased()` in `src/data/days.ts` compares a day's date with today in New York. In a production build, the `release-gate` integration in `astro.config.ts` deletes unreleased days from `dist/` after the build, and the sitemap leaves them out. The calendar and the prev/next nav don't link to them. The build log names what it held back (`held back until their date: 02-spark, 03-fake`).
+- **`npm run dev` shows every day.** To build everything locally, e.g. to check a future day in a real build, run `RELEASE_ALL=1 npm run build`. The `weird-web-build-preview` entry in `.claude/launch.json` serves `dist/` on port 4329.
+- **The nightly rebuild:** `.github/workflows/release-day.yml` runs at 04:05 UTC every day in October, which is 00:05 in New York (all of October is on daylight time), and POSTs to a Netlify build hook. It also has a manual **Run workflow** button. The hook's URL lives in the `NETLIFY_BUILD_HOOK` repository secret; the workflow fails loudly if it's missing. To make one: Netlify → Site configuration → Build & deploy → Build hooks → add a hook on `main`, then `gh secret set NETLIFY_BUILD_HOOK`.
+- **Timing isn't exact.** GitHub can start scheduled runs late, often 5–30 minutes, so a day can appear a little after midnight. A manual run or any push to `main` releases it too, since every production build applies the gate.
+- **The source isn't secret.** The repo is public, so a pushed day can be read on GitHub before its date; only the site holds it back. Its images also ship to `dist/_astro/` under hashed names.
 
 ## Formatting
 

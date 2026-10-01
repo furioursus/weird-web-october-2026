@@ -1,0 +1,22 @@
+name: Release today's day
+
+on:
+  schedule:
+    - cron: "5 4 * 10 *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger a Netlify production build
+        env:
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          if [ -z "$NETLIFY_BUILD_HOOK" ]; then
+            echo "::error::Add the NETLIFY_BUILD_HOOK repository secret (see README.md#scheduled-releases)"
+            exit 1
+          fi
+          curl --fail --silent --show-error -X POST -d '{}' "$NETLIFY_BUILD_HOOK?trigger_title=Scheduled+release"

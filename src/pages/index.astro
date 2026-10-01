@@ -1,9 +1,9 @@
 ---
 import { Font } from "astro:assets";
 import Seo from "@/components/Seo.astro";
-import { DAYS } from "@/data/days";
+import { DAYS, isReleased } from "@/data/days";
 
-// A day counts as built once its page file exists (npm run new-day creates it).
+// A day links up once its page file exists (npm run new-day creates it) and its date has arrived.
 const built = new Set(
 	Object.keys(import.meta.glob("./[0-9][0-9]-*.astro")).map((path) =>
 		path.replace(/^\.\//, "").replace(/\.astro$/, ""),
@@ -43,7 +43,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 				{Array.from({ length: LEADING_BLANKS }, () => <li class="blank" aria-hidden="true" />)}
 				{DAYS.map((day) => (
 						<li class="day" data-date={day.date} data-day={day.number}>
-							{built.has(day.slug) ? (
+							{built.has(day.slug) && (import.meta.env.DEV || isReleased(day)) ? (
 								<a href={`/${day.slug}/`}>
 									<span class="num">
 										<span class="date">{day.number}</span>

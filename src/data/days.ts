@@ -61,6 +61,17 @@ export const DAYS: Day[] = THEMES.map((theme, i) => ({
 	date: `2026-10-${pad(i + 1)}`,
 }));
 
+/** Today's date in New York as YYYY-MM-DD. Every day goes live at midnight there. */
+export const todayInNewYork = (now = new Date()) =>
+	new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(now);
+
+/**
+ * Whether a day's page is out: its date has arrived in New York, or RELEASE_ALL=1 is set for the
+ * build. Pages also show every day under `npm run dev`. See README.md#scheduled-releases.
+ */
+export const isReleased = (day: Day, now = new Date()) =>
+	process.env.RELEASE_ALL === "1" || day.date <= todayInNewYork(now);
+
 export function getDay(number: number): Day {
 	const day = DAYS[number - 1];
 	if (!day) throw new Error(`No Weird Web October day ${number}; expected 1–31.`);

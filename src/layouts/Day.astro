@@ -7,7 +7,7 @@
 import { Font } from "astro:assets";
 import type { ComponentProps } from "astro/types";
 import Seo from "@/components/Seo.astro";
-import { DAYS, getDay } from "@/data/days";
+import { DAYS, type Day as DayInfo, getDay, isReleased } from "@/data/days";
 import { cssVariableFor, FONTS } from "@/fonts";
 
 interface Props {
@@ -29,8 +29,15 @@ const { theme } = getDay(day);
 const description =
 	Astro.props.description ??
 	`Day ${day} of Weird Web October 2026, on the theme "${theme}". There's a cat hidden somewhere on it.`;
-const prev = DAYS[day - 2];
-const next = DAYS[day];
+const built = new Set(
+	Object.keys(import.meta.glob("../pages/[0-9][0-9]-*.astro")).map((path) =>
+		path.replace(/^.*\//, "").replace(/\.astro$/, ""),
+	),
+);
+const linkable = (d?: DayInfo) =>
+	d && built.has(d.slug) && (import.meta.env.DEV || isReleased(d)) ? d : undefined;
+const prev = linkable(DAYS[day - 2]);
+const next = linkable(DAYS[day]);
 
 // Astro only warns about fonts it can't find, so a typo would silently fall back to a system
 // font. Fail the build instead.
