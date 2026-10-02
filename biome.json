@@ -127,6 +127,16 @@
 			}
 		},
 		{
+			"includes": ["src/pages/06-analog.astro"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"useFocusableInteractive": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["src/pages/index.astro"],
 			"linter": {
 				"rules": {

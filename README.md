@@ -87,6 +87,21 @@ Day 5 (Sheet) is Cellmates, a perfectly ordinary spreadsheet holding a snack bud
 - **Reduced motion** drops the hops, leans, hatching and sort flights; the faces still change mood.
 - **Lint:** the grid's ARIA roles trip two Biome rules, which are off for this page only (see [Formatting](#formatting)).
 
+## Day 6's Scope
+
+Day 6 (Analog) is a 1970s bench oscilloscope, the Phosphor & Sons Model 6, hanging on a pink pegboard. Its knobs draw glowing Lissajous figures on a green phosphor screen, and one setting draws Tybalt. It's set in Barlow Condensed, with Share Tech Mono for the service log's typed parts and Schoolbell for R.'s handwriting.
+
+- **The beam** is a canvas in XY mode: channel 1 drives x, channel 2 drives y, and each frame traces 1200 points (`N`) over one base cycle. Non-integer frequency ratios drift and roll because the window slides along with time (`tau`). Segments are grouped into 8 brightness buckets by length, since a real beam is bright where it moves slowly and faint where it jumps, so square and sawtooth waves break into dots and bars.
+- **Afterglow** keeps recent frames and redraws them faded, by age in milliseconds rather than frame count so 60 Hz and 120 Hz screens match (20 ms plus up to 650 ms from PERSIST). Frames are composited with `lighten`, not `lighter`, so a still figure doesn't add up to white.
+- **The knobs** are `role="slider"` divs: drag up or right to turn clockwise (Shift is slower), scroll, or use the arrow, Page, Home and End keys. The WAVE switches step through sine, triangle, square and sawtooth. FOCUS is sharpest at 0.62 and blurs either side of it.
+- **Finding Tybalt:** X at 2, Y at 3 and phase at 90° (`TARGET`), within 0.06 and 12° (the lock). Nearby, `warmth` rises: the trace starts morphing toward his outline, the SIGNAL LOCK needle climbs, and the screen reader status says something with ears is showing. At the lock, the beam draws him, the lamp lights, and a transparent `HiddenCat` hotspot appears over the drawing (`placeCat()` sizes it to his 64-unit outline); it's hidden the rest of the time.
+- **His outline** is HiddenCat's Tybalt path, written out as points in the page script, plus a tail and two eyes, resampled into one 1200-point beam path. The faint line through him is the beam jumping between parts, like real oscilloscope art.
+- **Clues:** the tape note, R.'s grease pencil circles on the three dials, and the service log under the scope, whose 9/28 entry is the riddle and whose 10/1 entry explains the circles. The log is real text, so screen reader users get the same clue as the circles.
+- **Sound** starts off and is synthesized in Web Audio: channel 1 in the left ear and channel 2 in the right at 110 Hz times their FREQ, a hum of two tones that beat slower as you get warmer, a 24 Hz purr on lock, and a click at each knob detent.
+- **On narrow screens** (860px and below) the screen is sticky, so it stays in view while you turn the knobs further down.
+- **Reduced motion** draws a still trace with no drift, afterglow or power-on warm-up, and the needle jumps instead of swinging.
+- **Lint:** the knobs trip one Biome rule, which is off for this page only (see [Formatting](#formatting)).
+
 ## Scheduled releases
 
 Each day goes live at midnight New York time on its date, on its own. I push a finished day to `main` whenever it's ready, and production builds hold it back until then. A nightly GitHub Action rebuilds the site just after midnight so the new day appears.
@@ -103,7 +118,7 @@ Biome formats and lints everything, including the HTML in `.astro` files: `npm r
 
 - **Full `.astro` formatting is experimental** in Biome 2.5: it needs `html.experimentalFullSupportEnabled` and `html.formatter.enabled` in `biome.json`. On an unformatted file it takes two passes to settle, then stays stable.
 - **I don't use Prettier.** `prettier-plugin-astro` 1.0.0 puts line breaks inside inline elements, which adds visible whitespace (day 1's redaction highlights overhang their words), and it ignores `htmlWhitespaceSensitivity`.
-- **Some lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noNoninteractiveTabindex` on day 2 (the room is a focusable `role="application"` for arrow-key shuffling, which Biome doesn't count as interactive), `a11y/useSemanticElements` and `a11y/useFocusableInteractive` on day 5 (the sheet is an ARIA grid whose cells are reached through `aria-activedescendant`, so they aren't focusable themselves, and a real `<table>` laid out with CSS grid risks losing its table semantics in Safari), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
+- **Some lint rules are off on purpose**, scoped in `biome.json` overrides: `a11y/useSemanticElements` on day 1 (its redaction bars are `span role="button"` because a `<button>` can't wrap across lines), `a11y/noNoninteractiveTabindex` on day 2 (the room is a focusable `role="application"` for arrow-key shuffling, which Biome doesn't count as interactive), `a11y/useSemanticElements` and `a11y/useFocusableInteractive` on day 5 (the sheet is an ARIA grid whose cells are reached through `aria-activedescendant`, so they aren't focusable themselves, and a real `<table>` laid out with CSS grid risks losing its table semantics in Safari), `a11y/useFocusableInteractive` on day 6 (Biome misses the `tabindex` on the multi-line knob tags), `a11y/noRedundantRoles` on the calendar (`role="list"` keeps list semantics in Safari once `list-style` is removed), and `complexity/noImportantStyles` in `.astro` files (the reduced-motion override needs `!important`).
 - **SVGs in `src/assets` aren't formatted**, so Illustrator exports drop in untouched.
 
 ## Days with dev shortcuts

@@ -33,6 +33,8 @@ export const FONTS: FontFamily[] = [
 	{ name: "Chewy" },
 	{ name: "Instrument Sans", weights: ["400 700"] },
 	{ name: "Fredoka", weights: ["300 700"] },
+	{ name: "Barlow Condensed", weights: [500, 700] },
+	{ name: "Share Tech Mono" },
 	// new-day: fonts are added above this line
 ];
 

@@ -1,0 +1,1475 @@
+---
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 6: Analog
+
+interface KnobDef {
+	key: string;
+	label: string;
+	name: string;
+	min: number;
+	max: number;
+	value: number;
+	step: number;
+	fine: number;
+	page: number;
+	size: "big" | "small" | "switch";
+	positions?: string[];
+	names?: string[];
+	marks?: { at: number; label?: string | undefined }[];
+	/** Where R. circled the setting in grease pencil. */
+	pencil?: number;
+}
+
+const SWEEP = 135;
+const SWITCH_SWEEP = 60;
+const WAVE_POSITIONS = ["SIN", "TRI", "SQR", "SAW"];
+const WAVE_NAMES = ["sine", "triangle", "square", "sawtooth"];
+
+const range = (from: number, to: number, by: number) =>
+	Array.from({ length: Math.round((to - from) / by) + 1 }, (_, i) => from + i * by);
+
+const freqKnob = (key: string, name: string, pencil: number): KnobDef => ({
+	key,
+	pencil,
+	label: "Freq",
+	name,
+	min: 1,
+	max: 6,
+	value: 1,
+	step: 0.05,
+	fine: 0.01,
+	page: 0.5,
+	size: "big",
+	marks: range(1, 6, 0.5).map((at) => ({
+		at,
+		label: Number.isInteger(at) ? String(at) : undefined,
+	})),
+});
+const waveSwitch = (key: string, name: string): KnobDef => ({
+	key,
+	label: "Wave",
+	name,
+	min: 0,
+	max: 3,
+	value: 0,
+	step: 1,
+	fine: 1,
+	page: 1,
+	size: "switch",
+	positions: WAVE_POSITIONS,
+	names: WAVE_NAMES,
+});
+const displayKnob = (key: string, label: string, name: string, value: number): KnobDef => ({
+	key,
+	label,
+	name,
+	min: 0,
+	max: 1,
+	value,
+	step: 0.05,
+	fine: 0.01,
+	page: 0.25,
+	size: "small",
+	marks: range(0, 1, 0.1).map((at) => ({ at })),
+});
+
+const GROUPS: { title: string; knobs: KnobDef[] }[] = [
+	{
+		title: "CH 1 · X",
+		knobs: [freqKnob("xFreq", "Channel 1 frequency", 2), waveSwitch("xWave", "Channel 1 waveform")],
+	},
+	{
+		title: "CH 2 · Y",
+		knobs: [freqKnob("yFreq", "Channel 2 frequency", 3), waveSwitch("yWave", "Channel 2 waveform")],
+	},
+	{
+		title: "Display",
+		knobs: [
+			displayKnob("inten", "Inten", "Intensity", 0.7),
+			displayKnob("focus", "Focus", "Focus", 0.6),
+			displayKnob("persist", "Persist", "Persistence", 0.45),
+		],
+	},
+];
+const PHASE: KnobDef = {
+	key: "phase",
+	label: "Phase",
+	name: "Phase between channels",
+	min: 0,
+	max: 360,
+	value: 90,
+	step: 5,
+	fine: 1,
+	page: 45,
+	size: "big",
+	pencil: 90,
+	marks: range(0, 360, 22.5).map((at) => ({ at, label: at % 90 === 0 ? `${at}°` : undefined })),
+};
+
+const angleFor = (k: KnobDef, v: number) =>
+	k.positions
+		? -SWITCH_SWEEP + (2 * SWITCH_SWEEP * v) / (k.positions.length - 1)
+		: -SWEEP + (2 * SWEEP * (v - k.min)) / (k.max - k.min);
+const marksFor = (k: KnobDef) =>
+	k.positions
+		? k.positions.map((label, i) => ({ angle: angleFor(k, i), label }))
+		: (k.marks ?? []).map((m) => ({ angle: angleFor(k, m.at), label: m.label }));
+
+// The lock meter: a needle pivoting at (80, 88), swinging ±50° from upright.
+const [PIVOT_X, PIVOT_Y] = [80, 88];
+const meterPoint = (deg: number, r: number) => {
+	const a = (deg * Math.PI) / 180;
+	return [PIVOT_X + r * Math.sin(a), PIVOT_Y - r * Math.cos(a)].map((n) => n.toFixed(2));
+};
+const METER_TICKS = range(0, 10, 1).map((i) => {
+	const deg = -50 + i * 10;
+	return { from: meterPoint(deg, 60), to: meterPoint(deg, i % 5 === 0 ? 70 : 66) };
+});
+const METER_LABELS = [0, 5, 10].map((n) => ({ n, at: meterPoint(-50 + n * 10, 78) }));
+const [bandStart, bandEnd] = [meterPoint(36, 64), meterPoint(50, 64)];
+const METER_BAND = `M${bandStart[0]} ${bandStart[1]}A64 64 0 0 1 ${bandEnd[0]} ${bandEnd[1]}`;
+const [arcStart, arcEnd] = [meterPoint(-50, 60), meterPoint(50, 60)];
+const METER_ARC = `M${arcStart[0]} ${arcStart[1]}A60 60 0 0 1 ${arcEnd[0]} ${arcEnd[1]}`;
+---
+
+<Day
+	day={6}
+	description="Scope: a 1970s bench oscilloscope with chunky knobs. Twist them to draw glowing Lissajous figures, and if you see ears, keep turning."
+	fonts={["Barlow Condensed", "Share Tech Mono", "Schoolbell"]}
+>
+	<main class="bench">
+		<article class="scope" aria-labelledby="scope-title">
+			<header class="plate">
+				<p class="maker">Phosphor &amp; Sons</p>
+				<h1 id="scope-title">Model 6 X–Y Scope</h1>
+			</header>
+
+			<p class="tape" aria-hidden="true">
+				CH 2 picks up something with ears. Keep turning.&nbsp;—R.
+			</p>
+
+			<div class="bezel">
+				<div class="screen">
+					<canvas class="crt" aria-hidden="true"></canvas>
+					<svg class="graticule" viewBox="0 0 100 80" preserveAspectRatio="none" aria-hidden="true">
+						{range(0, 10, 1).map((x) => <line x1={x * 10} y1="0" x2={x * 10} y2="80" />)}
+						{range(0, 8, 1).map((y) => <line x1="0" y1={y * 10} x2="100" y2={y * 10} />)}
+						{range(0, 50, 1).map((i) => <line class="minor" x1={i * 2} y1="39" x2={i * 2} y2="41" />)}
+						{range(0, 40, 1).map((i) => <line class="minor" x1="49" y1={i * 2} x2="51" y2={i * 2} />)}
+					</svg>
+					<div class="cat-spot" hidden>
+						<HiddenCat
+							cat="tybalt"
+							day={6}
+							color="transparent"
+							absolute={false}
+							style="--wwo-cat-size: 100%;"
+						/>
+					</div>
+				</div>
+			</div>
+			<p class="visually-hidden trace-status" role="status"></p>
+
+			<div class="sync">
+				<figure class="meter">
+					<svg viewBox="0 0 160 100" aria-hidden="true">
+						<path class="meter__arc" d={METER_ARC} />
+						<path class="meter__band" d={METER_BAND} />
+						{METER_TICKS.map((t) => <line x1={t.from[0]} y1={t.from[1]} x2={t.to[0]} y2={t.to[1]} />)}
+						{METER_LABELS.map((l) => (
+	<text x={l.at[0]} y={l.at[1]}>
+		{l.n}
+	</text>
+))}
+						<text class="meter__lock" x="110" y="58">LOCK</text>
+						<g class="meter__needle" transform="rotate(-50 80 88)">
+							<line x1="80" y1="88" x2="80" y2="20" />
+						</g>
+						<circle class="meter__pivot" cx="80" cy="88" r="5" />
+					</svg>
+					<figcaption>Signal lock</figcaption>
+				</figure>
+				<div class="lamp-row">
+					<span class="lamp" aria-hidden="true"></span>
+					<span class="legend">Lock</span>
+				</div>
+			</div>
+
+			<div class="controls">
+				{GROUPS.map((group) => (
+	<fieldset class="group">
+		<legend>{group.title}</legend>
+		<div class="group__knobs">
+			{group.knobs.map((k) => (
+				<div class={`control control--${k.size}`}>
+					<div class="dial">
+						{marksFor(k).map((m) => (
+							<>
+								<i class="tick" style={`--a: ${m.angle}deg`} />
+								{m.label && (
+									<b class="mark" style={`--a: ${m.angle}deg`}>
+										{m.label}
+									</b>
+								)}
+							</>
+						))}
+						{k.pencil !== undefined && (
+							<i class="pencil" style={`--a: ${angleFor(k, k.pencil)}deg`} />
+						)}
+						<div
+							class="knob"
+							role="slider"
+							tabindex="0"
+							aria-label={k.name}
+							aria-valuemin={k.min}
+							aria-valuemax={k.max}
+							aria-valuenow={k.value}
+							data-key={k.key}
+							data-min={k.min}
+							data-max={k.max}
+							data-value={k.value}
+							data-step={k.step}
+							data-fine={k.fine}
+							data-page={k.page}
+							data-sweep={k.positions ? SWITCH_SWEEP : SWEEP}
+							data-names={k.names ? JSON.stringify(k.names) : undefined}
+							style={`--turn: ${angleFor(k, k.value)}deg`}
+						>
+							<span class="knob__turn" />
+						</div>
+					</div>
+					<span class="legend">{k.label}</span>
+				</div>
+			))}
+		</div>
+	</fieldset>
+))}
+				<fieldset class="group group--phase">
+					<legend>Sync</legend>
+					<div class="group__knobs">
+						<div class="control control--big">
+							<div class="dial">
+								{marksFor(PHASE).map((m) => (
+	<>
+		<i class="tick" style={`--a: ${m.angle}deg`} />
+		{m.label && (
+			<b class="mark" style={`--a: ${m.angle}deg`}>
+				{m.label}
+			</b>
+		)}
+	</>
+))}
+								{PHASE.pencil !== undefined && (
+	<i class="pencil" style={`--a: ${angleFor(PHASE, PHASE.pencil)}deg`} />
+)}
+								<div
+									class="knob"
+									role="slider"
+									tabindex="0"
+									aria-label={PHASE.name}
+									aria-valuemin={PHASE.min}
+									aria-valuemax={PHASE.max}
+									aria-valuenow={PHASE.value}
+									data-key={PHASE.key}
+									data-min={PHASE.min}
+									data-max={PHASE.max}
+									data-value={PHASE.value}
+									data-step={PHASE.step}
+									data-fine={PHASE.fine}
+									data-page={PHASE.page}
+									data-sweep={SWEEP}
+									style={`--turn: ${angleFor(PHASE, PHASE.value)}deg`}
+								>
+									<span class="knob__turn" />
+								</div>
+							</div>
+							<span class="legend">{PHASE.label}</span>
+						</div>
+						<div class="control control--toggle">
+							<button type="button" class="toggle" aria-pressed="false" aria-label="Sound">
+								<span class="toggle__bat" />
+							</button>
+							<span class="legend">Sound</span>
+						</div>
+					</div>
+				</fieldset>
+			</div>
+		</article>
+
+		<aside class="log" aria-labelledby="log-title">
+			<h2 id="log-title">Service log · Model 6, serial 0451</h2>
+			<ol>
+				<li><time>9/12</time> Replaced the fuse. Smells better now.&nbsp;—J.</li>
+				<li>
+					<time>9/20</time>
+					Trace wobbles when the fridge kicks on. Not a scope problem.&nbsp;—J.
+				</li>
+				<li>
+					<time>9/28</time>
+					CH 1 doubled, CH 2 tripled, phase left at a quarter turn. Saw ears?? Lamp lit.&nbsp;—R.
+				</li>
+				<li><time>9/29</time> Could not reproduce. R. needs sleep.&nbsp;—J.</li>
+				<li>
+					<time>10/1</time>
+					Circled R.’s settings on the dials in grease pencil. Humor him.&nbsp;—J.
+				</li>
+			</ol>
+		</aside>
+	</main>
+</Day>
+
+<script>
+const TAU = Math.PI * 2;
+const N = 1200;
+const AX = 1;
+const AY = 1;
+const TARGET = { xFreq: 2, yFreq: 3, phase: 90 };
+const BG = "rgb(5, 12, 8)";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+type Key = "xFreq" | "xWave" | "yFreq" | "yWave" | "phase" | "inten" | "focus" | "persist";
+const state = {} as Record<Key, number>;
+
+const WAVES: readonly [(p: number) => number, ...((p: number) => number)[]] = [
+	Math.sin,
+	(p) => (2 / Math.PI) * Math.asin(Math.sin(p)),
+	(p) => (Math.sin(p) >= 0 ? 1 : -1),
+	(p) => {
+		const u = p / TAU;
+		return 2 * (u - Math.floor(u + 0.5));
+	},
+];
+const OSC_TYPES: OscillatorType[] = ["sine", "triangle", "square", "sawtooth"];
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const smoothstep = (a: number, b: number, v: number) => {
+	const t = clamp((v - a) / (b - a), 0, 1);
+	return t * t * (3 - 2 * t);
+};
+const phaseGap = (deg: number) => {
+	const d = Math.abs(deg - TARGET.phase) % 360;
+	return d > 180 ? 360 - d : d;
+};
+
+// Tybalt, the same outline as HiddenCat's 64-unit artwork, traced as one beam path.
+type Pt = [number, number];
+type Seg = [Pt] | [Pt, Pt, Pt];
+
+function sample(start: Pt, segs: Seg[]): Pt[] {
+	const out: Pt[] = [start];
+	let p = start;
+	for (const seg of segs) {
+		for (let i = 1; i <= 48; i++) {
+			const t = i / 48;
+			if (seg.length === 1) {
+				out.push([p[0] + (seg[0][0] - p[0]) * t, p[1] + (seg[0][1] - p[1]) * t]);
+			} else {
+				const [c1, c2, e] = seg;
+				const u = 1 - t;
+				const a = u * u * u;
+				const b = 3 * u * u * t;
+				const c = 3 * u * t * t;
+				const d = t * t * t;
+				out.push([
+					a * p[0] + b * c1[0] + c * c2[0] + d * e[0],
+					a * p[1] + b * c1[1] + c * c2[1] + d * e[1],
+				]);
+			}
+		}
+		p = seg.length === 1 ? seg[0] : seg[2];
+	}
+	return out;
+}
+
+function resample(pts: Pt[], n: number): Pt[] {
+	const lengths = [0];
+	let total = 0;
+	pts.forEach(([x, y], i) => {
+		const [px, py] = pts[i - 1] ?? [x, y];
+		if (i === 0) return;
+		total += Math.hypot(x - px, y - py);
+		lengths.push(total);
+	});
+	const out: Pt[] = [];
+	let j = 1;
+	for (let k = 0; k < n; k++) {
+		const target = (total * k) / n;
+		while (j < lengths.length - 1 && (lengths[j] ?? 0) < target) j++;
+		const from = lengths[j - 1] ?? 0;
+		const t = (target - from) / ((lengths[j] ?? 0) - from || 1);
+		const [ax, ay] = pts[j - 1] ?? [0, 0];
+		const [bx, by] = pts[j] ?? [ax, ay];
+		out.push([ax + (bx - ax) * t, ay + (by - ay) * t]);
+	}
+	return out;
+}
+
+const eye = (cx: number, cy: number): Pt[] =>
+	Array.from({ length: 33 }, (_, i) => [
+		cx + 1.6 * Math.sin((i / 32) * TAU),
+		cy - 2.2 * Math.cos((i / 32) * TAU),
+	]);
+
+const BODY = sample(
+	[50, 60],
+	[
+		[[16, 60]],
+		[
+			[14, 52],
+			[16, 42],
+			[24, 36],
+		],
+		[
+			[18, 34],
+			[16, 28],
+			[20, 22],
+		],
+		[[22, 8]],
+		[[30, 17]],
+		[[36, 17]],
+		[[44, 8]],
+		[[46, 22]],
+		[
+			[50, 28],
+			[48, 34],
+			[42, 36],
+		],
+		[
+			[50, 42],
+			[52, 52],
+			[50, 60],
+		],
+	],
+);
+const TAIL = sample(
+	[50, 58],
+	[
+		[
+			[60, 58],
+			[62, 46],
+			[56, 42],
+		],
+	],
+);
+const CAT_EXTRAS: [Pt[], number][] = [
+	[eye(29, 25), 40],
+	[eye(37, 25), 40],
+	[[...TAIL, ...TAIL.slice().reverse()], 110],
+];
+const CAT_PARTS: [Pt[], number][] = [
+	[BODY, N - CAT_EXTRAS.reduce((sum, [, n]) => sum + n, 0)],
+	...CAT_EXTRAS,
+];
+
+// 64-unit artwork to screen units: centered on the cat, 52 units tall becomes 1.5 units.
+const CAT_K = 1.5 / 52;
+const CAT_CX = 36;
+const CAT_CY = 34;
+const CAT_U = new Float32Array(N);
+const CAT_V = new Float32Array(N);
+{
+	let i = 0;
+	for (const [pts, n] of CAT_PARTS) {
+		for (const [x, y] of resample(pts, n)) {
+			CAT_U[i] = (x - CAT_CX) * CAT_K;
+			CAT_V[i] = -(y - CAT_CY) * CAT_K;
+			i++;
+		}
+	}
+}
+
+const scope = document.querySelector<HTMLElement>(".scope");
+const canvas = document.querySelector<HTMLCanvasElement>(".crt");
+const ctx = canvas?.getContext("2d");
+const catSpot = document.querySelector<HTMLElement>(".cat-spot");
+const needle = document.querySelector<SVGGElement>(".meter__needle");
+const lamp = document.querySelector<HTMLElement>(".lamp");
+const status = document.querySelector<HTMLElement>(".trace-status");
+const toggle = document.querySelector<HTMLButtonElement>(".toggle");
+
+if (!scope || !canvas || !ctx || !catSpot || !needle || !lamp || !status || !toggle) {
+	throw new Error("Day 6's scope is missing a piece of its markup.");
+}
+
+let W = 0;
+let H = 0;
+let S = 0;
+let dpr = 1;
+let tau = 0;
+let dirty = true;
+let warmth = 0;
+let locked = false;
+let morph = 0;
+let needlePos = 0;
+let needleVel = 0;
+const startedAt = performance.now();
+
+interface Frame {
+	paths: Path2D[];
+	used: boolean[];
+	at: number;
+}
+const BUCKETS = 8;
+const history: Frame[] = [];
+const xs = new Float32Array(N);
+const ys = new Float32Array(N);
+
+const placeCat = () => {
+	const unit = (S * CAT_K) / dpr;
+	const size = 64 * unit;
+	catSpot.style.inlineSize = `${size}px`;
+	catSpot.style.left = `${W / 2 / dpr - CAT_CX * unit}px`;
+	catSpot.style.top = `${H / 2 / dpr - CAT_CY * unit}px`;
+};
+
+const resize = () => {
+	const rect = canvas.getBoundingClientRect();
+	dpr = Math.min(window.devicePixelRatio || 1, 2);
+	W = Math.max(1, Math.round(rect.width * dpr));
+	H = Math.max(1, Math.round(rect.height * dpr));
+	canvas.width = W;
+	canvas.height = H;
+	S = Math.min(W / (2 * AX + 0.5), H / (2 * AY + 0.25));
+	history.length = 0;
+	dirty = true;
+	placeCat();
+};
+new ResizeObserver(resize).observe(canvas);
+
+const measure = () => {
+	const dx = (state.xFreq - TARGET.xFreq) / 1.5;
+	const dy = (state.yFreq - TARGET.yFreq) / 1.5;
+	const dp = phaseGap(state.phase);
+	warmth = Math.max(0, 1 - Math.hypot(dx, dy, dp / 240));
+	const wasLocked = locked;
+	locked =
+		Math.abs(state.xFreq - TARGET.xFreq) < 0.06 &&
+		Math.abs(state.yFreq - TARGET.yFreq) < 0.06 &&
+		dp < 12;
+	morph = locked ? 1 : smoothstep(0.55, 0.98, warmth) * 0.8;
+	if (locked !== wasLocked) {
+		lamp.classList.toggle("is-on", locked);
+		catSpot.hidden = !locked;
+	}
+};
+
+const trace = (amp: number) => {
+	const wx = WAVES[state.xWave] ?? WAVES[0];
+	const wy = WAVES[state.yWave] ?? WAVES[0];
+	const ph = (state.phase * Math.PI) / 180;
+	const cx = W / 2;
+	const cy = H / 2;
+	for (let k = 0; k < N; k++) {
+		const t = tau - TAU + (TAU * k) / (N - 1);
+		let u = AX * wx(state.xFreq * t + ph);
+		let v = AY * wy(state.yFreq * t);
+		if (morph > 0) {
+			const i = Math.floor(((((t % TAU) + TAU) % TAU) / TAU) * N) % N;
+			u += ((CAT_U[i] ?? 0) - u) * morph;
+			v += ((CAT_V[i] ?? 0) - v) * morph;
+		}
+		xs[k] = cx + u * S * amp;
+		ys[k] = cy - v * S * amp;
+	}
+};
+
+// A beam is brighter where it moves slowly, so each segment's brightness falls with its length.
+const bucket = (at: number): Frame => {
+	const paths = Array.from({ length: BUCKETS }, () => new Path2D());
+	const used = new Array<boolean>(BUCKETS).fill(false);
+	const bright = 2.4 * dpr;
+	let px = xs[0] ?? 0;
+	let py = ys[0] ?? 0;
+	for (let k = 1; k < N; k++) {
+		const x = xs[k] ?? 0;
+		const y = ys[k] ?? 0;
+		const len = Math.hypot(x - px, y - py);
+		const b = len < 0.01 ? 1 : Math.min(1, bright / len);
+		const q = Math.min(BUCKETS - 1, Math.floor(b * BUCKETS));
+		const path = paths[q];
+		if (b >= 0.02 && path) {
+			path.moveTo(px, py);
+			path.lineTo(x, y);
+			used[q] = true;
+		}
+		px = x;
+		py = y;
+	}
+	return { paths, used, at };
+};
+
+const draw = (now: number) => {
+	const reduce = reduceMotion.matches;
+	const age = now - startedAt;
+	const warm = reduce ? 1 : clamp(age / 700, 0, 1);
+	const amp = reduce ? 1 : 1 - (1 - clamp((age - 250) / 900, 0, 1)) ** 3;
+
+	trace(amp);
+	history.unshift(bucket(now));
+	const glowFor = reduce ? 0 : 20 + state.persist * 650;
+	while (
+		history.length > 1 &&
+		(now - (history.at(-1)?.at ?? now) > glowFor || history.length > 90)
+	) {
+		history.pop();
+	}
+
+	const blur = Math.abs(state.focus - 0.62) * 2.4;
+	const coreW = (1.3 + 7 * blur) * dpr;
+	const glowW = (6 + 14 * blur) * dpr;
+	const coreA = 1 / (1 + 5 * blur);
+	const inten = (0.2 + 1.1 * state.inten) * warm;
+
+	ctx.globalCompositeOperation = "source-over";
+	ctx.fillStyle = BG;
+	ctx.fillRect(0, 0, W, H);
+	ctx.globalCompositeOperation = "lighten";
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+	for (let a = history.length - 1; a >= 0; a--) {
+		const frame = history[a];
+		if (!frame) continue;
+		const { paths, used, at } = frame;
+		const fade = a === 0 ? 1 : 0.6 * Math.max(0, 1 - (now - at) / glowFor) ** 2;
+		for (let q = 0; q < BUCKETS; q++) {
+			const path = paths[q];
+			if (!used[q] || !path) continue;
+			const alpha = ((q + 0.5) / BUCKETS) * fade * inten;
+			if (a < 6) {
+				ctx.lineWidth = glowW;
+				ctx.strokeStyle = `rgba(40, 255, 120, ${Math.min(1, alpha * 0.14)})`;
+				ctx.stroke(path);
+			}
+			ctx.lineWidth = coreW;
+			ctx.strokeStyle = `rgba(140, 255, 165, ${Math.min(1, alpha * coreA)})`;
+			ctx.stroke(path);
+		}
+	}
+};
+
+const moveNeedle = (dt: number) => {
+	const target = locked ? 1 : Math.max(0.03, warmth) + (Math.random() - 0.5) * 0.04 * (1 - warmth);
+	if (reduceMotion.matches) {
+		needlePos = locked ? 1 : warmth;
+	} else {
+		needleVel += (target - needlePos) * 90 * dt;
+		needleVel *= Math.exp(-9 * dt);
+		needlePos += needleVel * dt;
+	}
+	const deg = clamp(-50 + 100 * needlePos, -53, 53);
+	needle.setAttribute("transform", `rotate(${deg.toFixed(2)} 80 88)`);
+};
+
+let last = performance.now();
+const frame = (now: number) => {
+	const dt = Math.min(0.05, (now - last) / 1000);
+	last = now;
+	const reduce = reduceMotion.matches;
+	if (!reduce) {
+		tau += dt * 0.45;
+		dirty = true;
+	}
+	if (dirty) {
+		draw(now);
+		dirty = reduce ? false : dirty;
+	}
+	moveNeedle(dt);
+	requestAnimationFrame(frame);
+};
+
+// Sound: channel 1 in the left ear, channel 2 in the right, so you hear the picture.
+interface Rig {
+	ctx: AudioContext;
+	master: GainNode;
+	x: OscillatorNode;
+	y: OscillatorNode;
+	humB: OscillatorNode;
+	hum: GainNode;
+	purr: GainNode;
+	noise: AudioBuffer;
+}
+let rig: Rig | null = null;
+let soundOn = false;
+const BASE = 110;
+
+const buildRig = (): Rig => {
+	const ac = new AudioContext();
+	const master = ac.createGain();
+	master.gain.value = 0;
+	master.connect(ac.destination);
+	const soft = ac.createBiquadFilter();
+	soft.type = "lowpass";
+	soft.frequency.value = 1600;
+	soft.connect(master);
+
+	const merger = ac.createChannelMerger(2);
+	merger.connect(soft);
+	const channel = (index: number) => {
+		const osc = ac.createOscillator();
+		const gain = ac.createGain();
+		gain.gain.value = 0.045;
+		osc.connect(gain).connect(merger, 0, index);
+		return osc;
+	};
+	const x = channel(0);
+	const y = channel(1);
+
+	// The hum is two tones that beat against each other; the closer you are, the slower the beat.
+	const hum = ac.createGain();
+	hum.gain.value = 0;
+	hum.connect(soft);
+	const humA = ac.createOscillator();
+	const humB = ac.createOscillator();
+	humA.frequency.value = 220;
+	humB.frequency.value = 228;
+	humA.connect(hum);
+	humB.connect(hum);
+	const lfo = ac.createOscillator();
+	lfo.frequency.value = 24;
+	const purr = ac.createGain();
+	purr.gain.value = 0;
+	lfo.connect(purr).connect(hum.gain);
+
+	const noise = ac.createBuffer(1, Math.round(ac.sampleRate * 0.02), ac.sampleRate);
+	const data = noise.getChannelData(0);
+	for (let i = 0; i < data.length; i++)
+		data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 3;
+
+	for (const osc of [x, y, humA, humB, lfo]) osc.start();
+	return { ctx: ac, master, x, y, humB, hum, purr, noise };
+};
+
+const tune = () => {
+	if (!rig || !soundOn) return;
+	const now = rig.ctx.currentTime;
+	rig.x.type = OSC_TYPES[state.xWave] ?? "sine";
+	rig.y.type = OSC_TYPES[state.yWave] ?? "sine";
+	rig.x.frequency.setTargetAtTime(BASE * state.xFreq, now, 0.02);
+	rig.y.frequency.setTargetAtTime(BASE * state.yFreq, now, 0.02);
+	rig.humB.frequency.setTargetAtTime(220 + (locked ? 0 : 0.5 + 9 * (1 - warmth)), now, 0.05);
+	rig.hum.gain.setTargetAtTime(warmth > 0.05 ? 0.02 + 0.04 * warmth : 0, now, 0.1);
+	rig.purr.gain.setTargetAtTime(locked ? 0.035 : 0, now, 0.15);
+};
+
+let lastClick = 0;
+const click = () => {
+	if (!rig || !soundOn) return;
+	const now = rig.ctx.currentTime;
+	if (now - lastClick < 0.025) return;
+	lastClick = now;
+	const src = rig.ctx.createBufferSource();
+	src.buffer = rig.noise;
+	const band = rig.ctx.createBiquadFilter();
+	band.type = "bandpass";
+	band.frequency.value = 2600;
+	band.Q.value = 1.5;
+	const gain = rig.ctx.createGain();
+	gain.gain.value = 0.5;
+	src.connect(band).connect(gain).connect(rig.master);
+	src.start();
+};
+
+toggle.addEventListener("click", async () => {
+	soundOn = !soundOn;
+	toggle.setAttribute("aria-pressed", String(soundOn));
+	if (soundOn) {
+		rig ??= buildRig();
+		await rig.ctx.resume();
+		rig.master.gain.setTargetAtTime(1, rig.ctx.currentTime, 0.08);
+		tune();
+	} else if (rig) {
+		rig.master.gain.setTargetAtTime(0, rig.ctx.currentTime, 0.05);
+	}
+});
+
+// A plain-words account of the trace for screen readers, once the knobs settle.
+let describeTimer = 0;
+const describe = () => {
+	const near = (v: number) => Math.abs(v - Math.round(v)) < 0.03;
+	let text: string;
+	if (locked) {
+		text = "The trace is a cat. It’s looking at you.";
+	} else {
+		let shape: string;
+		if (near(state.xFreq) && near(state.yFreq)) {
+			const a = Math.round(state.xFreq);
+			const b = Math.round(state.yFreq);
+			const sines = state.xWave === 0 && state.yWave === 0;
+			const tilt = Math.abs(state.phase % 180);
+			if (a === b && sines && (tilt < 8 || tilt > 172)) shape = "a diagonal line";
+			else if (a === b && sines && Math.abs(tilt - 90) < 8) shape = "a circle";
+			else if (a === b && sines) shape = "an ellipse";
+			else shape = `a steady ${a} to ${b} figure`;
+		} else {
+			shape = "a figure that drifts and rolls, because the channels aren’t in step";
+		}
+		text = `The trace is ${shape}.`;
+		if (warmth > 0.45) text += " Something with ears is starting to show.";
+	}
+	if (status.textContent !== text) status.textContent = text;
+};
+
+const changed = () => {
+	measure();
+	tune();
+	dirty = true;
+	clearTimeout(describeTimer);
+	describeTimer = window.setTimeout(describe, 600);
+};
+
+for (const el of document.querySelectorAll<HTMLElement>(".knob")) {
+	const key = el.dataset.key as Key;
+	const min = Number(el.dataset.min);
+	const max = Number(el.dataset.max);
+	const step = Number(el.dataset.step);
+	const fine = Number(el.dataset.fine);
+	const page = Number(el.dataset.page);
+	const sweep = Number(el.dataset.sweep);
+	const names: string[] | null = el.dataset.names ? JSON.parse(el.dataset.names) : null;
+	const decimals = String(fine).split(".")[1]?.length ?? 0;
+	state[key] = Number(el.dataset.value);
+
+	const valueText = (v: number) => {
+		if (names) return names[v] ?? "";
+		if (key === "phase") return `${Math.round(v)} degrees`;
+		if (key === "xFreq" || key === "yFreq") return `${v.toFixed(2)} times`;
+		return `${Math.round(v * 100)} percent`;
+	};
+	el.setAttribute("aria-valuetext", valueText(state[key]));
+
+	const set = (raw: number) => {
+		let v = clamp(raw, min, max);
+		v = names ? Math.round(v) : Number((Math.round(v / fine) * fine).toFixed(decimals));
+		const prev = state[key];
+		if (v === prev) return;
+		if (Math.floor(prev / step + 1e-6) !== Math.floor(v / step + 1e-6)) click();
+		state[key] = v;
+		const angle = names
+			? -sweep + (2 * sweep * v) / (names.length - 1)
+			: -sweep + (2 * sweep * (v - min)) / (max - min);
+		el.style.setProperty("--turn", `${angle}deg`);
+		el.setAttribute("aria-valuenow", String(v));
+		el.setAttribute("aria-valuetext", valueText(v));
+		changed();
+	};
+
+	el.addEventListener("keydown", (e) => {
+		const by = e.shiftKey ? fine : step;
+		const moves: Record<string, number> = {
+			ArrowUp: by,
+			ArrowRight: by,
+			ArrowDown: -by,
+			ArrowLeft: -by,
+			PageUp: page,
+			PageDown: -page,
+			Home: Number.NEGATIVE_INFINITY,
+			End: Number.POSITIVE_INFINITY,
+		};
+		if (!(e.key in moves)) return;
+		e.preventDefault();
+		set(state[key] + (moves[e.key] ?? 0));
+	});
+
+	el.addEventListener(
+		"wheel",
+		(e) => {
+			e.preventDefault();
+			set(state[key] + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? fine : step));
+		},
+		{ passive: false },
+	);
+
+	// Drag up or right to turn clockwise. Shift drags slowly.
+	let drag: { x: number; y: number; value: number } | null = null;
+	el.addEventListener("pointerdown", (e) => {
+		el.setPointerCapture(e.pointerId);
+		el.focus();
+		drag = { x: e.clientX, y: e.clientY, value: state[key] };
+		el.classList.add("is-turning");
+	});
+	el.addEventListener("pointermove", (e) => {
+		if (!drag) return;
+		const px = e.clientX - drag.x - (e.clientY - drag.y);
+		const perPx = names ? 1 / 36 : (max - min) / 260;
+		set(drag.value + px * perPx * (e.shiftKey ? 0.2 : 1));
+	});
+	const end = () => {
+		drag = null;
+		el.classList.remove("is-turning");
+	};
+	el.addEventListener("pointerup", end);
+	el.addEventListener("pointercancel", end);
+}
+
+reduceMotion.addEventListener("change", () => {
+	history.length = 0;
+	dirty = true;
+});
+measure();
+describe();
+resize();
+requestAnimationFrame(frame);
+</script>
+
+<style>
+:root {
+	--pegboard: #b8467a;
+	--hole: #3d0f28;
+	--putty: #ddd6c6;
+	--putty-dark: #c7bea9;
+	--ink: #2a2520;
+	--pink: #ff2e93;
+	--focus: #1d3fc4;
+	--marker: #2b2a6b;
+	--phosphor: #8dffaa;
+}
+body {
+	margin: 0;
+	min-block-size: 100dvh;
+	overflow-x: clip;
+	color: var(--ink);
+	font-family: var(--font-barlow-condensed), system-ui, sans-serif;
+	font-weight: 500;
+	background-color: var(--pegboard);
+	background-image:
+		radial-gradient(circle, var(--hole) 0 3px, #0000 3.6px), linear-gradient(#0000 60%, #0003);
+	background-size:
+		32px 32px,
+		100% 100%;
+	background-attachment: fixed;
+}
+.visually-hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.bench {
+	display: grid;
+	justify-items: center;
+	align-content: center;
+	min-block-size: 100dvh;
+	padding: 3rem 16px 4rem;
+	box-sizing: border-box;
+}
+
+.scope {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+	grid-template-rows: auto auto 1fr;
+	grid-template-areas:
+		"plate plate"
+		"screen controls"
+		"sync controls";
+	gap: 1.25rem 2rem;
+	inline-size: min(72rem, 100%);
+	padding: 1.5rem 1.75rem 2rem;
+	box-sizing: border-box;
+	border-radius: 16px;
+	background: linear-gradient(170deg, var(--putty), var(--putty-dark));
+	box-shadow:
+		inset 0 2px 0 #fff9,
+		inset 0 -4px 0 #0002,
+		0 4px 0 #8f8573,
+		0 30px 60px #2a0718aa;
+}
+
+.plate {
+	grid-area: plate;
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.25rem 1rem;
+	justify-self: start;
+	padding: 0.4rem 1rem 0.5rem;
+	border-radius: 4px;
+	background: linear-gradient(#1d1b1a, #0d0c0c);
+	box-shadow:
+		inset 0 1px 0 #fff2,
+		0 1px 0 #fff8;
+}
+.maker {
+	margin: 0;
+	font-weight: 700;
+	font-size: 0.85rem;
+	letter-spacing: 0.3em;
+	text-transform: uppercase;
+	color: var(--pink);
+}
+h1 {
+	margin: 0;
+	font-weight: 700;
+	font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #e9e3d6;
+}
+
+.tape {
+	position: absolute;
+	inset: -1.1rem 2rem auto auto;
+	z-index: 2;
+	max-inline-size: 15rem;
+	margin: 0;
+	padding: 0.5rem 1rem 0.6rem;
+	font-family: var(--font-schoolbell), cursive;
+	font-size: 1rem;
+	line-height: 1.25;
+	color: var(--marker);
+	background: #f1e6b8e6;
+	rotate: 2.5deg;
+	box-shadow: 0 2px 4px #0003;
+	clip-path: polygon(
+		0 6%,
+		3% 0,
+		8% 5%,
+		14% 1%,
+		100% 0,
+		98% 30%,
+		100% 55%,
+		97% 100%,
+		90% 95%,
+		84% 100%,
+		0 100%,
+		2% 60%
+	);
+}
+
+.bezel {
+	grid-area: screen;
+	align-self: start;
+	padding: clamp(10px, 2vw, 18px);
+	border-radius: 14px;
+	background: linear-gradient(160deg, #2b2a28, #111);
+	box-shadow:
+		inset 0 2px 1px #fff2,
+		inset 0 -2px 2px #0008,
+		0 2px 0 #fff7;
+}
+.screen {
+	position: relative;
+	aspect-ratio: 5 / 4;
+	overflow: hidden;
+	border-radius: 18px / 22px;
+	background: rgb(5 12 8);
+	box-shadow: inset 0 0 40px #000;
+}
+.screen::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background:
+		radial-gradient(120% 100% at 50% 50%, #0000 55%, #000a 100%),
+		linear-gradient(155deg, #ffffff17 0 22%, #0000 40%);
+}
+.crt {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+}
+.graticule {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+	pointer-events: none;
+	stroke: #9fd8ae;
+	stroke-opacity: 0.2;
+	stroke-width: 0.15;
+}
+.graticule .minor {
+	stroke-opacity: 0.3;
+}
+.cat-spot {
+	position: absolute;
+	z-index: 1;
+}
+.cat-spot[hidden] {
+	display: none;
+}
+
+.sync {
+	grid-area: sync;
+	align-self: start;
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+}
+.meter {
+	margin: 0;
+	inline-size: min(14rem, 60%);
+	padding: 0.5rem 0.5rem 0.35rem;
+	border-radius: 6px;
+	background: linear-gradient(#f8f2e2, #e9e0c8);
+	box-shadow:
+		inset 0 0 0 2px #3a332b,
+		inset 0 6px 10px #0002;
+	text-align: center;
+}
+.meter svg {
+	display: block;
+	inline-size: 100%;
+}
+.meter__arc,
+.meter line {
+	fill: none;
+	stroke: var(--ink);
+	stroke-width: 1.2;
+}
+.meter__band {
+	fill: none;
+	stroke: var(--pink);
+	stroke-width: 7;
+}
+.meter text {
+	font-family: var(--font-barlow-condensed), sans-serif;
+	font-size: 10px;
+	text-anchor: middle;
+	fill: var(--ink);
+}
+.meter .meter__lock {
+	font-weight: 700;
+	font-size: 9px;
+	letter-spacing: 0.1em;
+}
+.meter .meter__needle line {
+	stroke: #111;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+}
+.meter__pivot {
+	fill: #111;
+}
+.meter figcaption {
+	font-weight: 700;
+	font-size: 0.75rem;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+}
+.lamp-row {
+	display: grid;
+	justify-items: center;
+	gap: 0.4rem;
+}
+.lamp {
+	inline-size: 1.6rem;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	background: radial-gradient(circle at 40% 35%, #8a6a3a, #3d2a12);
+	box-shadow:
+		0 0 0 4px #1a1816,
+		0 0 0 5px #fff6;
+	transition:
+		background 0.2s,
+		box-shadow 0.2s;
+}
+.lamp.is-on {
+	background: radial-gradient(circle at 40% 35%, #fff6c8, #ffb020 55%, #c46a00);
+	box-shadow:
+		0 0 0 4px #1a1816,
+		0 0 0 5px #fff6,
+		0 0 18px 6px #ffb02099;
+}
+
+.controls {
+	grid-area: controls;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	align-content: start;
+}
+.group {
+	margin: 0;
+	padding: 0.5rem 0.5rem 0.75rem;
+	border: 1.5px solid #6d6355;
+	border-radius: 8px;
+	min-inline-size: 0;
+}
+.group legend {
+	padding: 0 0.4rem;
+	font-weight: 700;
+	font-size: 0.85rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+}
+.group__knobs {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-around;
+	align-items: end;
+	gap: 0.5rem;
+}
+
+.control {
+	--size: 3rem;
+	display: grid;
+	justify-items: center;
+	gap: 0.15rem;
+	padding: 1.6rem 1.1rem 0;
+}
+.control--big {
+	--size: 4.6rem;
+}
+.control--small {
+	--size: 2.6rem;
+	padding-top: 1rem;
+	padding-inline: 0.6rem;
+}
+.control--switch {
+	--size: 2.8rem;
+}
+.dial {
+	position: relative;
+	inline-size: var(--size);
+	aspect-ratio: 1;
+}
+.tick,
+.mark {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	pointer-events: none;
+}
+.tick {
+	inline-size: 1.5px;
+	block-size: 5px;
+	background: var(--ink);
+	transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--size) / -2 - 6px));
+}
+.mark {
+	font-weight: 700;
+	font-size: 0.7rem;
+	line-height: 1;
+	transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--size) / -2 - 15px))
+		rotate(calc(var(--a) * -1));
+}
+.control--switch .mark {
+	font-size: 0.62rem;
+	transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--size) / -2 - 13px))
+		rotate(calc(var(--a) * -1));
+}
+.pencil {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	inline-size: 1.9rem;
+	block-size: 1.35rem;
+	box-sizing: border-box;
+	border: solid var(--marker);
+	border-width: 2px 2.5px 1.5px 2px;
+	border-radius: 48% 52% 45% 55%;
+	opacity: 0.85;
+	pointer-events: none;
+	transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--size) / -2 - 15px))
+		rotate(calc(var(--a) * -1 - 8deg));
+}
+.group--phase .pencil {
+	inline-size: 2.4rem;
+}
+
+.log {
+	position: relative;
+	inline-size: min(38rem, 100%);
+	justify-self: start;
+	margin: -0.75rem 0 0 clamp(0px, 6vw, 5rem);
+	padding: 1rem 1.5rem 1.25rem 3rem;
+	box-sizing: border-box;
+	color: var(--marker);
+	background:
+		linear-gradient(90deg, #0000 2.25rem, #ff2e9366 2.25rem 2.35rem, #0000 2.35rem),
+		repeating-linear-gradient(#0000 0 1.7rem, #7d93c455 1.7rem calc(1.7rem + 1px)), #fbf8ee;
+	background-position:
+		0 0,
+		0 0.55rem,
+		0 0;
+	box-shadow: 0 10px 24px #2a071866;
+	rotate: -1.5deg;
+}
+.log h2 {
+	margin: 0 0 0.35rem;
+	font-family: var(--font-share-tech-mono), monospace;
+	font-weight: 400;
+	font-size: 0.85rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink);
+}
+.log ol {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-family: var(--font-schoolbell), cursive;
+	font-size: 1.05rem;
+	line-height: 1.7rem;
+}
+.log time {
+	margin-inline-end: 0.4rem;
+	font-family: var(--font-share-tech-mono), monospace;
+	font-size: 0.85rem;
+	color: var(--ink);
+}
+
+.legend {
+	font-weight: 700;
+	font-size: 0.8rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+.knob {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	cursor: grab;
+	touch-action: none;
+	background:
+		repeating-conic-gradient(#ffffff12 0 3deg, #0000 3deg 9deg),
+		radial-gradient(circle at 38% 30%, #5e5a55, #23211f 58%, #0c0b0a);
+	box-shadow:
+		0 3px 0 #0009,
+		0 7px 12px #0005,
+		inset 0 1px 1px #fff4;
+}
+.knob::before {
+	content: "";
+	position: absolute;
+	inset: 18%;
+	border-radius: 50%;
+	background: radial-gradient(circle at 40% 32%, #4b4844, #1b1a18);
+	box-shadow:
+		inset 0 1px 1px #fff3,
+		0 1px 2px #000a;
+}
+.knob.is-turning {
+	cursor: grabbing;
+}
+.knob:focus-visible {
+	outline: 3px solid var(--focus);
+	outline-offset: 4px;
+}
+.knob__turn {
+	position: absolute;
+	inset: 0;
+	rotate: var(--turn);
+}
+.knob__turn::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 7%;
+	inline-size: 3px;
+	block-size: 32%;
+	translate: -50% 0;
+	border-radius: 2px;
+	background: var(--pink);
+	box-shadow: 0 0 0 1px #0006;
+}
+.control--switch .knob {
+	border-radius: 30%;
+	background: linear-gradient(160deg, #4a4642, #161514);
+}
+.control--switch .knob::before {
+	inset: 40% 8%;
+	border-radius: 3px;
+	background: linear-gradient(#3b3835, #222);
+	rotate: var(--turn);
+}
+
+.control--toggle {
+	align-self: center;
+	padding-top: 0.5rem;
+}
+.toggle {
+	position: relative;
+	inline-size: 2.4rem;
+	block-size: 3.6rem;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	cursor: pointer;
+	background: radial-gradient(circle, #d7d7d7 0 30%, #8d8d8d 32%, #555 60%, #2a2a2a);
+	box-shadow: 0 2px 4px #0006;
+}
+.toggle__bat {
+	position: absolute;
+	left: 50%;
+	bottom: 50%;
+	inline-size: 0.7rem;
+	block-size: 2rem;
+	translate: -50% 0;
+	transform-origin: 50% 100%;
+	rotate: 160deg;
+	border-radius: 0.35rem 0.35rem 0.2rem 0.2rem;
+	background: linear-gradient(90deg, #9a9a9a, #f4f4f4 45%, #8a8a8a);
+	transition: rotate 0.12s;
+}
+.toggle[aria-pressed="true"] .toggle__bat {
+	rotate: 20deg;
+}
+.toggle:focus-visible {
+	outline: 3px solid var(--focus);
+	outline-offset: 4px;
+}
+
+@media (max-width: 860px) {
+	.scope {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: none;
+		grid-template-areas:
+			"plate"
+			"screen"
+			"sync"
+			"controls";
+		padding: 1.25rem 1rem 1.5rem;
+	}
+	.tape {
+		inset: -1.4rem 0.5rem auto auto;
+		max-inline-size: 11rem;
+		font-size: 0.9rem;
+	}
+	.plate {
+		margin-top: 1.5rem;
+	}
+	.log {
+		margin-inline-start: 0;
+		padding-inline-end: 1rem;
+		rotate: -0.75deg;
+	}
+	.bezel {
+		position: sticky;
+		top: 8px;
+		z-index: 3;
+		box-shadow:
+			inset 0 2px 1px #fff2,
+			inset 0 -2px 2px #0008,
+			0 2px 0 #fff7,
+			0 10px 24px #0006;
+	}
+}
+@media (max-width: 480px) {
+	.controls {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.control {
+		padding-inline: 0.7rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+</style>
