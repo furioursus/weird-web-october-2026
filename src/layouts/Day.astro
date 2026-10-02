@@ -7,6 +7,7 @@
 import { Font } from "astro:assets";
 import type { ComponentProps } from "astro/types";
 import Seo from "@/components/Seo.astro";
+import { CARD_HEIGHT, CARD_WIDTH, CARDS } from "@/data/cards";
 import { DAYS, type Day as DayInfo, getDay, isReleased } from "@/data/days";
 import { cssVariableFor, FONTS } from "@/fonts";
 
@@ -25,7 +26,7 @@ interface Props {
 }
 
 const { day, fonts = [], nav = true } = Astro.props;
-const { theme } = getDay(day);
+const { theme, slug } = getDay(day);
 const description =
 	Astro.props.description ??
 	`Day ${day} of Weird Web October 2026, on the theme "${theme}". There's a cat hidden somewhere on it.`;
@@ -50,6 +51,19 @@ const fontVariables = fonts.map((name) => {
 });
 
 const title = `${theme} · Weird Web October, day ${day}`;
+const card = CARDS[day];
+const image = {
+	src: `/${slug}/og.jpg`,
+	alt: [
+		`Day ${day} of Weird Web October, “${theme}”, beside a big ${day} on torn pink felt.`,
+		[card?.title, card?.line].filter(Boolean).join(": "),
+	]
+		.filter(Boolean)
+		.join(" "),
+	width: CARD_WIDTH,
+	height: CARD_HEIGHT,
+	type: "image/jpeg",
+};
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -58,7 +72,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<Seo title={title} description={description} />
+		<Seo title={title} description={description} image={image} />
 
 		<!-- Octothorpes: lists this page under #weirdweboctober and the day's theme tag. -->
 		<link rel="preload" as="fetch" href={`https://octothorp.es/?uri=${canonical}`} />
@@ -73,12 +87,12 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 		<slot />
 
 		{nav && (
-				<nav class="wwo-nav" aria-label="Weird Web October">
-					{prev ? <a href={`/${prev.slug}/`}>← {prev.theme}</a> : <span />}
-					<a href="/">all days</a>
-					{next ? <a href={`/${next.slug}/`}>{next.theme} →</a> : <span />}
-				</nav>
-			)}
+	<nav class="wwo-nav" aria-label="Weird Web October">
+		{prev ? <a href={`/${prev.slug}/`}>← {prev.theme}</a> : <span />}
+		<a href="/">all days</a>
+		{next ? <a href={`/${next.slug}/`}>{next.theme} →</a> : <span />}
+	</nav>
+)}
 	</body>
 </html>
 
