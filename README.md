@@ -14,6 +14,7 @@ I'm making a small, weird website every day of October, following the [Weird Web
 | `npm run font:typed` | Print the typewriter flaw table; add `-- --write` to regenerate the font (needs [uv](https://docs.astral.sh/uv/)) |
 | `npm run leaves:pothos` | List the pothos leaves in day 2's room SVG that would get a new outline; add `-- --write` to save (needs uv) |
 | `npm run photos:fake` | List day 3's listing crops and whether their source photos are in `design/day-3/`; add `-- --write` to save them (needs uv) |
+| `npm run icons` | List the favicon files built from `src/assets/favicon-eye.png`; add `-- --write` to save them to `public/` |
 | `npm run check` | `astro check` plus Biome |
 
 Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only reads the font config at startup, so the new page fails with `FontFamilyNotFound`) and after any `npm install` (the running server can lose track of Sharp and every optimized image fails with `MissingSharp`).
@@ -147,7 +148,9 @@ In `npm run dev`, Astro stamps every element in the page body with `data-astro-s
 
 Pages are listed on the [#weirdweboctober](https://octothorp.es/~/weirdweboctober) feed once the domain is registered at [octothorp.es/register](https://octothorp.es/register). The production URL is set in `astro.config.ts` and has to match the deployed domain.
 
-For search engines and link previews, `src/components/Seo.astro` renders every page's head tags in one place: title, description, canonical URL, Open Graph and Twitter card. The calendar uses `public/weird-web-october-og-image.png` (1200×630) as its preview image; every day gets its own generated card (below). A day's description is the `description` prop on `<Day>`; leave it out and the layout falls back to the day number and theme.
+For search engines and link previews, `src/components/Seo.astro` renders every page's head tags in one place: title, description, canonical URL, icons, Open Graph and Twitter card. The calendar uses `public/weird-web-october-og-image.png` (1200×630) as its preview image; every day gets its own generated card (below). A day's description is the `description` prop on `<Day>`; leave it out and the layout falls back to the day number and theme.
+
+The favicon is the eye from Zur's Weirding, kept at its original 236px in `src/assets/favicon-eye.png`. `scripts/favicon.mjs` (`npm run icons -- --write`) builds `public/favicon.ico` (16, 32 and 48px), `public/icon-192.png` and `public/apple-touch-icon.png` (180px, flattened onto the calendar's ink because iOS fills transparent corners anyway). They're saved as palette PNGs, which keeps all three around 25KB or less; full-color PNGs of the painted texture were up to 95KB.
 
 ### Preview cards
 

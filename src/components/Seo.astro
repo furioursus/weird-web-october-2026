@@ -1,8 +1,8 @@
 ---
 /**
- * Every head tag search engines and link previews read: title, description, canonical URL,
- * Open Graph and Twitter cards. Both the calendar and the Day layout render it, so the tags
- * stay identical across pages. See README.md#sharing.
+ * Every head tag search engines, link previews and browser tabs read: title, description,
+ * canonical URL, icons, Open Graph and Twitter cards. Both the calendar and the Day layout
+ * render it, so the tags stay identical across pages. See README.md#sharing.
  */
 interface Props {
 	/** Document title, also the Open Graph title unless `socialTitle` is given. */
@@ -30,6 +30,9 @@ const imageUrl = new URL(image.src, Astro.site);
 <title>{title}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonical} />
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
 <meta property="og:site_name" content="Weird Web October 2026" />
 <meta property="og:locale" content="en_US" />

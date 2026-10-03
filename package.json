@@ -13,7 +13,8 @@
 		"font:typed": "uv run scripts/misalign-font.py",
 		"leaves:pothos": "uv run scripts/reshape-pothos.py",
 		"format": "biome format --write",
-		"photos:fake": "uv run scripts/crop-listings.py"
+		"photos:fake": "uv run scripts/crop-listings.py",
+		"icons": "node scripts/favicon.mjs"
 	},
 	"dependencies": {
 		"@astrojs/sitemap": "^3.7.4",
