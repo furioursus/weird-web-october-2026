@@ -16,7 +16,7 @@ jobs:
           NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
         run: |
           if [ -z "$NETLIFY_BUILD_HOOK" ]; then
-            echo "::error::Add the NETLIFY_BUILD_HOOK repository secret (see README.md#scheduled-releases)"
+            echo "::error::Add the NETLIFY_BUILD_HOOK repository secret (see docs/releases.md)"
             exit 1
           fi
           curl --fail --silent --show-error -X POST -d '{}' "$NETLIFY_BUILD_HOOK?trigger_title=Scheduled+release"

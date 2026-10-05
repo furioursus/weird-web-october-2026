@@ -67,7 +67,7 @@ export const todayInNewYork = (now = new Date()) =>
 
 /**
  * Whether a day's page is out: its date has arrived in New York, or RELEASE_ALL=1 is set for the
- * build. Pages also show every day under `npm run dev`. See README.md#scheduled-releases.
+ * build. Pages also show every day under `npm run dev`. See docs/releases.md.
  */
 export const isReleased = (day: Day, now = new Date()) =>
 	process.env.RELEASE_ALL === "1" || day.date <= todayInNewYork(now);

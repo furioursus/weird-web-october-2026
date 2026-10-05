@@ -5,7 +5,7 @@ import Day from "@/layouts/Day.astro";
 
 // Day 2: Spark
 
-// A shape id picks its class ("chair-5" is a chair); see README.md#day-2s-room
+// A shape id picks its class ("chair-5" is a chair); see docs/days/02-spark.md
 const CLASSES = [
 	"ceil",
 	"wall-back",
@@ -104,7 +104,7 @@ const FILE = "src/assets/02-spark-room.svg";
 const attr = (attrs: string, name: string) =>
 	attrs.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1];
 
-// Only which Illustrator .stN classes are unfilled matters; see README.md#day-2s-room
+// Only which Illustrator .stN classes are unfilled matters; see docs/days/02-spark.md
 const unfilled = new Set<string>();
 const css = roomSource.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
 for (const [, selectors = "", body = ""] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
@@ -177,7 +177,7 @@ const inFront = glass
 	.map((s) => render(s, "ambient"))
 	.join("");
 
-// Spot position and size come from the outline's first two points; see README.md#day-2s-room
+// Spot position and size come from the outline's first two points; see docs/days/02-spark.md
 const NUM = "(-?(?:\\d+\\.?\\d*|\\.\\d+))";
 const spots = inLayer("tybalt-spots")
 	.filter((s, i, all) => all.findIndex((o) => o.groups[1] === s.groups[1]) === i)

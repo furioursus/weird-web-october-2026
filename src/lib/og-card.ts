@@ -2,7 +2,7 @@
  * Draws a day's 1200×630 link-preview card: the calendar's dark background, the day's number on a
  * torn scrap of pink felt, and the theme, title and line from src/data/cards.ts. Satori lays out
  * the text as paths, so no fonts need installing where it builds; sharp renders the result.
- * See README.md#preview-cards.
+ * See docs/sharing.md#preview-cards.
  */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";

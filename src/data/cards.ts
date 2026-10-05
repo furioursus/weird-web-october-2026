@@ -1,7 +1,7 @@
 /**
  * The words on each day's link-preview card (src/lib/og-card.ts). Keep them short and different
  * from the page's `description`, since previews show the card and the description side by side.
- * A day without an entry gets a card with just its number and theme. See README.md#preview-cards.
+ * A day without an entry gets a card with just its number and theme. See docs/sharing.md#preview-cards.
  */
 /** Open Graph's recommended size. */
 export const CARD_WIDTH = 1200;

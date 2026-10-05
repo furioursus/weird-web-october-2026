@@ -1,6 +1,6 @@
 /**
  * Each built day's link-preview card at /<slug>/og.jpg. It sits inside the day's folder so the
- * release gate deletes it along with an unreleased page. See README.md#preview-cards.
+ * release gate deletes it along with an unreleased page. See docs/sharing.md#preview-cards.
  */
 import type { APIRoute, GetStaticPaths } from "astro";
 import { CARDS } from "@/data/cards";

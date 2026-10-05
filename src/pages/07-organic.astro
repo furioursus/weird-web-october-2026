@@ -147,7 +147,7 @@ const DANTE_BODY =
 	"M10 58c-4 0-4-14 4-18 4-2 8-2 10-2v-8l3-10 6 7h6l6-7 3 10c3 4 2 8 0 10 8 0 12 6 12 12 0 4-2 6-6 6Z";
 const DANTE_TAIL = "M54 58c-6 4-24 4-28 0";
 
-// How each bit of mold moves: Jeff Jones's 2010 Physarum model (see README.md#day-7s-blob)
+// How each bit of mold moves: Jeff Jones's 2010 Physarum model (see docs/days/07-organic.md)
 const SENSOR_ANGLE = 0.4; // how far left and right it sniffs, in radians
 const SENSOR_DISTANCE = 9; // how many cells ahead it sniffs
 const TURN_ANGLE = 0.4; // how far it turns toward a better smell, in radians
@@ -1148,7 +1148,7 @@ function animate(time: number) {
 startBlob();
 updateOatMap();
 
-// Dev shortcuts: ?jump=settled and ?jump=grown skip ahead (see README.md#days-with-dev-shortcuts)
+// Dev shortcuts: ?jump=settled and ?jump=grown skip ahead (see docs/dev-shortcuts.md)
 const jump = import.meta.env.DEV ? new URLSearchParams(location.search).get("jump") : null;
 if (jump === "settled") {
 	for (let s = 0; s < 1500; s++) {

@@ -12,7 +12,7 @@ import { cssVariableFor, DEFAULT_STYLES, DEFAULT_WEIGHTS, FONTS } from "./src/fo
 const SITE = "https://weirdweb.furioursus.dev";
 
 // Days whose date hasn't arrived in New York yet: built, then dropped from dist/ and the sitemap.
-// See README.md#scheduled-releases.
+// See docs/releases.md.
 const UNRELEASED = DAYS.filter((day) => !isReleased(day)).map((day) => day.slug);
 
 const releaseGate: AstroIntegration = {
@@ -53,7 +53,7 @@ export default defineConfig({
 			provider: fontProviders.local(),
 			name,
 			cssVariable: cssVariableFor(name),
-			// `as never`: Astro only types local-font options in a literal array; see README.md#how-it-fits-together
+			// `as never`: Astro only types local-font options in a literal array; see docs/architecture.md
 			options: { variants: [{ src: [src] }] } as never,
 		})),
 	],

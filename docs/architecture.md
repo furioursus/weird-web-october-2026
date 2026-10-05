@@ -1,0 +1,11 @@
+# How it fits together
+
+Where each shared piece of the site lives and what it does. Each day's own page is covered in `docs/days/`.
+
+- `src/data/days.ts`: the 31 themes, in order, and `isReleased()`, which decides whether a day is out yet (see [Scheduled releases](releases.md)). Theme names double as Octothorpes hashtags, so they match the official list exactly.
+- `src/fonts.ts`: every font the site uses. I self-host them through Astro's Fonts API with the Fontsource provider, so nothing loads from Google's CDN. Each font is exposed as a CSS variable, e.g. `var(--font-special-elite)`. An entry with `src` is a font file in the repo, served by Astro's local provider instead of Fontsource. `astro.config.ts` casts those entries' options `as never`, because Astro can only type local-font options in a literal array, not a mapped one.
+- `src/assets/fonts/special-elite-typed.woff2`: "Special Elite Typed", day 1's body font. It's Special Elite (Apache 2.0, from `@fontsource/special-elite`) with a few glyphs shifted up or down by a fixed amount, like bent typebars, and its hinting removed. `scripts/misalign-font.py` builds it; edit the `FLAWS` table there (offsets in px at 17px) and run `npm run font:typed -- --write`, then restart `npm run dev`.
+- `src/layouts/Day.astro`: the shared shell. It renders the head tags through `src/components/Seo.astro` (pointing the preview image at the day's generated card), adds both Octothorpes tags, loads only the fonts the page asks for, and renders a small prev/next nav that only links to days that are built and released. It ships no visual styles, so every day can look completely different.
+- `src/data/cards.ts` and `src/lib/og-card.ts`: each day's link-preview card, its words and its layout (see [Preview cards](sharing.md#preview-cards)).
+- `src/components/HiddenCat.astro`: the hidden cat. Position it with `style`, tint it with `color`. Finding it is remembered in `localStorage`, and the index shows the tally.
+- `src/pages/index.astro`: the calendar, a photocopied zine of torn felt scraps. A day links up once its page file exists and it's released (see [The calendar](calendar.md)).

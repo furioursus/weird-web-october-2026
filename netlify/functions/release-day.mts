@@ -3,9 +3,7 @@ import type { Config } from "@netlify/functions";
 export default async () => {
 	const hook = Netlify.env.get("NETLIFY_BUILD_HOOK");
 	if (!hook) {
-		throw new Error(
-			"Add the NETLIFY_BUILD_HOOK environment variable (see README.md#scheduled-releases)",
-		);
+		throw new Error("Add the NETLIFY_BUILD_HOOK environment variable (see docs/releases.md)");
 	}
 	const res = await fetch(`${hook}?trigger_title=Scheduled+release`, {
 		method: "POST",
