@@ -100,6 +100,8 @@ const COLS = 20;
 const ROWS = 50;
 const ROW_H = 36;
 const RAND_EVERY = 1800;
+const BLINK_EVERY = 6000;
+const BLINK_TICK = 250;
 const MOOD_WORDS: Record<Mood, string> = {
 	happy: "content",
 	proud: "very proud",
@@ -366,8 +368,6 @@ function makeCritter(ref: string, id: number): Critter | null {
 	if (!cell) return null;
 	const el = document.createElement("span");
 	el.className = "critter";
-	el.style.setProperty("--blink-delay", `${(-Math.random() * 6).toFixed(2)}s`);
-	el.style.setProperty("--blink-every", `${(4 + Math.random() * 4).toFixed(2)}s`);
 	const val = document.createElement("span");
 	val.className = "val";
 	const face = document.createElement("span");
@@ -379,11 +379,17 @@ function makeCritter(ref: string, id: number): Critter | null {
 	return { el, val, id, shown: "" };
 }
 
+function setStyle(el: HTMLElement, name: string, value: string) {
+	if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
+}
+
 function play(el: HTMLElement, name: string, delay = 0) {
 	if (reduce) return;
 	window.setTimeout(() => {
-		el.classList.remove(name);
-		void el.offsetWidth;
+		if (el.classList.contains(name)) {
+			el.classList.remove(name);
+			void el.offsetWidth;
+		}
 		el.classList.add(name);
 		const done = (e: AnimationEvent) => {
 			if (e.target !== el) return;
@@ -414,9 +420,10 @@ function render(origin?: string, quiet = false) {
 		const v = values.get(ref) ?? "";
 		const text = show(v);
 		const changed = critter.shown !== "" && critter.shown !== text;
-		critter.val.textContent = text;
+		if (critter.val.textContent !== text) critter.val.textContent = text;
 		critter.el.classList.toggle("num", typeof v === "number" || v instanceof Err);
-		critter.el.dataset.mood = moodOf(ref, v, stats);
+		const mood = moodOf(ref, v, stats);
+		if (critter.el.dataset.mood !== mood) critter.el.dataset.mood = mood;
 		if (changed && !fresh && !quiet) {
 			const pos = parseRef(ref);
 			const dist = from && pos ? Math.abs(pos.c - from.c) + Math.abs(pos.r - from.r) : 0;
@@ -470,9 +477,9 @@ function select(c: number, r: number, announce = true) {
 	const ref = refOf(sel.c, sel.r);
 	const cell = cellEl(ref);
 	if (!cell || !cursor || !grid) return;
-	cursor.style.translate = `${cell.offsetLeft - 1}px ${cell.offsetTop - 1}px`;
-	cursor.style.inlineSize = `${cell.offsetWidth + 1}px`;
-	cursor.style.blockSize = `${cell.offsetHeight + 1}px`;
+	setStyle(cursor, "translate", `${cell.offsetLeft - 1}px ${cell.offsetTop - 1}px`);
+	setStyle(cursor, "inline-size", `${cell.offsetWidth + 1}px`);
+	setStyle(cursor, "block-size", `${cell.offsetHeight + 1}px`);
 	grid.setAttribute("aria-activedescendant", cell.id);
 	const raw = sheet.get(ref)?.raw ?? "";
 	if (refBox) refBox.textContent = ref;
@@ -489,8 +496,8 @@ function select(c: number, r: number, announce = true) {
 		const dy = sel.r - pos.r;
 		const near = Math.max(Math.abs(dx), Math.abs(dy)) === 1;
 		critter.el.classList.toggle("lean", near && !reduce);
-		critter.el.style.setProperty("--dx", String(Math.sign(dx)));
-		critter.el.style.setProperty("--dy", String(Math.sign(dy)));
+		setStyle(critter.el, "--dx", String(Math.sign(dx)));
+		setStyle(critter.el, "--dy", String(Math.sign(dy)));
 	}
 	lookAround();
 
@@ -514,16 +521,20 @@ function lookAround() {
 		const selPoint = selected
 			? { x: selected.left + selected.width / 2, y: selected.top + selected.height / 2 }
 			: null;
-		for (const [ref, critter] of critters) {
+		// Every read before any write; see docs/days/05-sheet.md (scroll performance).
+		const faces = [...critters].map(([ref, critter]) => ({
+			ref,
+			critter,
+			face: critter.el.firstElementChild?.getBoundingClientRect(),
+		}));
+		for (const { ref, critter, face } of faces) {
 			const target = fans.has(ref) ? selPoint : (pointer ?? selPoint);
-			if (!target) continue;
-			const face = critter.el.firstElementChild?.getBoundingClientRect();
-			if (!face) continue;
+			if (!target || !face) continue;
 			const dx = target.x - (face.left + face.width / 2);
 			const dy = target.y - (face.top + face.height / 2);
 			const len = Math.hypot(dx, dy) || 1;
-			critter.el.style.setProperty("--lx", `${((dx / len) * 1.4).toFixed(2)}px`);
-			critter.el.style.setProperty("--ly", `${((dy / len) * 1.2).toFixed(2)}px`);
+			setStyle(critter.el, "--lx", `${((dx / len) * 1.4).toFixed(2)}px`);
+			setStyle(critter.el, "--ly", `${((dy / len) * 1.2).toFixed(2)}px`);
 		}
 	});
 }
@@ -747,19 +758,26 @@ if (grid && scroller && editor && handle) {
 	});
 
 	window.addEventListener("pointermove", (e) => {
-		pointer = { x: e.clientX, y: e.clientY };
 		if (fill) {
 			const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".cell");
 			const pos = cell ? parseRef(cell.dataset.ref ?? "") : null;
 			if (pos) fillTo(pos.r);
 		}
+		if (e.pointerType === "touch") return;
+		pointer = { x: e.clientX, y: e.clientY };
 		lookAround();
 	});
 	document.documentElement.addEventListener("pointerleave", () => {
 		pointer = null;
 		lookAround();
 	});
-	scroller.addEventListener("scroll", lookAround, { passive: true });
+	scroller.addEventListener(
+		"scroll",
+		() => {
+			if (pointer) lookAround();
+		},
+		{ passive: true },
+	);
 
 	handle.addEventListener("pointerdown", (e) => {
 		e.preventDefault();
@@ -838,6 +856,15 @@ if (grid && scroller && editor && handle) {
 		const critter = critters.get(giddy);
 		if (critter) play(critter.el, "jiggle");
 	}, RAND_EVERY);
+
+	window.setInterval(() => {
+		if (reduce) return;
+		for (const critter of critters.values()) {
+			if (Math.random() >= BLINK_TICK / BLINK_EVERY) continue;
+			critter.el.classList.add("blink");
+			window.setTimeout(() => critter.el.classList.remove("blink"), 300);
+		}
+	}, BLINK_TICK);
 }
 </script>
 
@@ -1024,7 +1051,8 @@ if (grid && scroller && editor && handle) {
 	z-index: 4;
 }
 .cell {
-	position: relative;
+	display: grid;
+	grid-template: minmax(0, 1fr) / minmax(0, 1fr);
 	border-inline-end: 1px solid var(--line);
 	border-block-end: 1px solid var(--line);
 	transition: background-color 0.25s;
@@ -1033,7 +1061,6 @@ if (grid && scroller && editor && handle) {
 	background: var(--pink-soft);
 }
 .cell[data-ref="R44"] {
-	display: grid;
 	place-items: center;
 }
 .cursor {
@@ -1096,9 +1123,11 @@ if (grid && scroller && editor && handle) {
 	white-space: nowrap;
 }
 
+.cell > :global(*) {
+	grid-area: 1 / 1;
+}
 .cell :global(.critter) {
-	position: absolute;
-	inset: 0;
+	place-self: stretch;
 	display: flex;
 	flex-direction: row-reverse;
 	align-items: center;
@@ -1135,7 +1164,9 @@ if (grid && scroller && editor && handle) {
 	background: var(--ink);
 	translate: var(--lx, 0) var(--ly, 0);
 	transition: translate 0.12s linear;
-	animation: blink var(--blink-every, 5s) var(--blink-delay, 0s) infinite;
+}
+.cell :global(.blink .eye) {
+	animation: blink 0.3s;
 }
 .cell :global(.eye:first-child) {
 	left: 4px;
@@ -1154,6 +1185,19 @@ if (grid && scroller && editor && handle) {
 	border: 1.5px solid var(--ink);
 	border-top: 0;
 	border-radius: 0 0 6px 6px;
+}
+.cell :global(.mouth::after) {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	box-sizing: border-box;
+	inline-size: 4px;
+	block-size: 4px;
+	translate: -50% -50%;
+	border: 1.5px solid var(--ink);
+	border-radius: 50%;
+	opacity: 0;
 }
 .cell :global(.face::before),
 .cell :global(.face::after) {
@@ -1174,12 +1218,7 @@ if (grid && scroller && editor && handle) {
 	right: 0;
 }
 @keyframes blink {
-	0%,
-	95%,
-	100% {
-		scale: 1 1;
-	}
-	97.5% {
+	50% {
 		scale: 1 0.1;
 	}
 }
@@ -1264,6 +1303,9 @@ if (grid && scroller && editor && handle) {
 .cell :global(.oh .mouth) {
 	animation: oh 0.6s;
 }
+.cell :global(.oh .mouth::after) {
+	animation: oh-ring 0.6s;
+}
 .cell :global(.cheer) {
 	animation: hop 0.5s cubic-bezier(0.3, 0.7, 0.4, 1);
 }
@@ -1288,11 +1330,14 @@ if (grid && scroller && editor && handle) {
 @keyframes oh {
 	20%,
 	70% {
-		inline-size: 4px;
-		block-size: 4px;
-		border: 1.5px solid var(--ink);
-		border-radius: 50%;
-		background: none;
+		border-color: transparent;
+		background-color: transparent;
+	}
+}
+@keyframes oh-ring {
+	20%,
+	70% {
+		opacity: 1;
 	}
 }
 @keyframes hatch {
