@@ -137,6 +137,16 @@
 			}
 		},
 		{
+			"includes": ["src/pages/07-organic.astro"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noNoninteractiveTabindex": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["src/pages/index.astro"],
 			"linter": {
 				"rules": {

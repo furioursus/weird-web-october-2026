@@ -21,4 +21,5 @@ export const CARDS: Partial<Record<number, CardText>> = {
 	4: { title: "Tybalgotchi", line: "A 1998 virtual pet that would rather eat the plastic." },
 	5: { title: "Cellmates", line: "A perfectly ordinary spreadsheet whose cells have feelings." },
 	6: { title: "Scope", line: "Twist the knobs until the phosphor grows ears." },
+	7: { title: "Blob", line: "One cell, no brain, and it still finds the oats first." },
 };

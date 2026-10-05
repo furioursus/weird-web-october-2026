@@ -1,0 +1,1474 @@
+---
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 7: Organic
+
+/** Simulation grid, in cells per side of the dish's square. */
+const GRID = 360;
+/** Where the mold won't grow: Dante's outline, as fractions of the dish's width. */
+const CAT = { x: 0.13, y: 0.43, size: 0.24 };
+/** Where the blob starts, as fractions of the dish's width. */
+const START = { x: 0.68, y: 0.36 };
+
+const ENTRIES = [
+	{ date: "10/1", text: "Revived from a dry flake. Yellow by morning." },
+	{ date: "10/2", text: "One cell. No brain. Found the oats first." },
+	{ date: "10/3", text: "Paris Zoo calls it “le blob.”" },
+	{ date: "10/4", text: "Won’t cross its own old slime." },
+	{ date: "10/5", text: "Oats as Tokyo’s cities → Tokyo’s rail map. (Tero et al., 2010)" },
+	{
+		date: "10/6",
+		text: "Dish knocked over at 3 A.M. Won’t grow in one patch, left side. Brown fur, kibble dust.",
+	},
+];
+---
+
+<Day
+	day={7}
+	description="A petri dish of yellow slime mold. Drop oats and watch a single brainless cell find every one."
+	fonts={["IBM Plex Mono", "Kalam", "Permanent Marker"]}
+>
+	<main class="bench">
+		<section class="plate" aria-labelledby="plate-title">
+			<div class="tape">
+				<h1 id="plate-title">Blob</h1>
+				<p><i>P. polycephalum</i> · plate 7 · do not eat</p>
+			</div>
+
+			<div
+				class="dish"
+				role="application"
+				tabindex="0"
+				aria-label="Petri dish of slime mold"
+				aria-describedby="dish-help"
+				data-grid={GRID}
+				data-cat={JSON.stringify(CAT)}
+				data-start={JSON.stringify(START)}
+			>
+				<canvas class="agar" width={GRID} height={GRID} aria-hidden="true"></canvas>
+				<canvas class="props" aria-hidden="true"></canvas>
+				<div class="dropper" hidden></div>
+				<div
+					class="cat-spot"
+					style={`left: ${CAT.x * 100}%; top: ${CAT.y * 100}%; width: ${CAT.size * 100}%;`}
+					hidden
+				>
+					<HiddenCat
+						cat="dante"
+						day={7}
+						color="transparent"
+						absolute={false}
+						style="--wwo-cat-size: 100%;"
+					/>
+				</div>
+				<div class="glass" aria-hidden="true"></div>
+			</div>
+			<p class="visually-hidden dish-status" role="status"></p>
+
+			<p class="hint" id="dish-help">
+				Click or tap the dish to drop an oat. From the keyboard: arrow keys move the dropper and
+				Enter drops one.
+			</p>
+
+			<div class="tools">
+				<button type="button" class="fresh">Fresh plate</button>
+			</div>
+
+			<dl class="readout">
+				<div>
+					<dt>Elapsed</dt>
+					<dd class="elapsed">0 h 00 m</dd>
+				</div>
+				<div>
+					<dt>Oats found</dt>
+					<dd class="found">0</dd>
+				</div>
+				<div>
+					<dt>Oats eaten</dt>
+					<dd class="eaten">0</dd>
+				</div>
+				<div>
+					<dt>Cells</dt>
+					<dd>1</dd>
+				</div>
+				<div>
+					<dt>Nuclei</dt>
+					<dd class="nuclei">~1 million</dd>
+				</div>
+			</dl>
+		</section>
+
+		<aside class="notebook" aria-labelledby="notebook-title">
+			<h2 id="notebook-title">Notebook</h2>
+			<ol class="entries">
+				{ENTRIES.map((e) => (
+	<li>
+		<time>{e.date}</time>
+		<span>{e.text}</span>
+	</li>
+))}
+			</ol>
+			<h3>10/7 · today</h3>
+			<ol class="log" role="log">
+				<li>
+					<time>0 h 00 m</time>
+					<span>Fresh plate.</span>
+				</li>
+			</ol>
+		</aside>
+	</main>
+</Day>
+
+<script>
+// The parts of the page we need
+const dish = document.querySelector(".dish") as HTMLElement;
+const agarCanvas = dish.querySelector(".agar") as HTMLCanvasElement;
+const propsCanvas = dish.querySelector(".props") as HTMLCanvasElement;
+const dropper = dish.querySelector(".dropper") as HTMLElement;
+const catSpot = dish.querySelector(".cat-spot") as HTMLElement;
+const catButton = catSpot.querySelector(".wwo-cat") as HTMLButtonElement;
+const statusMessage = document.querySelector(".dish-status") as HTMLElement;
+const notebookLog = document.querySelector(".log") as HTMLOListElement;
+const freshPlateButton = document.querySelector(".fresh") as HTMLButtonElement;
+const elapsedReadout = document.querySelector(".elapsed") as HTMLElement;
+const foundReadout = document.querySelector(".found") as HTMLElement;
+const eatenReadout = document.querySelector(".eaten") as HTMLElement;
+const nucleiReadout = document.querySelector(".nuclei") as HTMLElement;
+
+// Settings passed in from the page's frontmatter
+const gridSize = Number(dish.dataset.grid);
+const catPatch = JSON.parse(dish.dataset.cat ?? "{}") as { x: number; y: number; size: number };
+const startingSpot = JSON.parse(dish.dataset.start ?? "{}") as { x: number; y: number };
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+// Dante's outline, copied from HiddenCat.astro (drawn on a 64 × 64 square)
+const DANTE_BODY =
+	"M10 58c-4 0-4-14 4-18 4-2 8-2 10-2v-8l3-10 6 7h6l6-7 3 10c3 4 2 8 0 10 8 0 12 6 12 12 0 4-2 6-6 6Z";
+const DANTE_TAIL = "M54 58c-6 4-24 4-28 0";
+
+// How each bit of mold moves: Jeff Jones's 2010 Physarum model (see README.md#day-7s-blob)
+const SENSOR_ANGLE = 0.4; // how far left and right it sniffs, in radians
+const SENSOR_DISTANCE = 9; // how many cells ahead it sniffs
+const TURN_ANGLE = 0.4; // how far it turns toward a better smell, in radians
+const WOBBLE = 0.12; // a little randomness in every turn
+const STEP_SIZE = 1; // cells moved per step
+const TRAIL_DEPOSIT = 5; // slime left behind on each step
+const TRAIL_FADE = 0.1; // share of the slime that evaporates each step
+const OAT_SMELL = 60; // how strongly an oat smells right next to it
+const OAT_SMELL_RADIUS = 28; // how far away the mold can smell an oat, in cells
+
+// Explorers: a few bits of mold that ignore the smell and wander, staining the agar
+const EXPLORER_EVERY = 40; // one in every 40 is an explorer
+const EXPLORER_WOBBLE = 0.5; // how much explorers drift as they go
+const STAIN_CHANCE = 0.3; // chance each step stains the agar a little more
+const STAIN_LEVELS = 16; // from clean agar (0) to fully stained (15)
+
+// How big the blob gets
+const STARTING_AGENTS = 1200;
+const STARTING_RADIUS = 22; // cells
+const RESTING_AGENTS = 8000; // it grows to this on its own
+const NEW_AGENTS_PER_STEP = 8; // how fast it grows to the resting size
+const STARVING_AGENTS_PER_STEP = 4; // how fast it shrinks back when there's no food
+const AGENTS_PER_OAT = 3000; // extra growth from each oat it eats
+const MEAL_AGENTS_PER_STEP = 40; // how fast that extra growth comes in
+const MAX_AGENTS = navigator.hardwareConcurrency > 4 ? 36000 : 24000; // lower on slower devices
+
+// Oats
+const OAT_LENGTH = 20; // how long a flake is drawn, in cells (about 5 mm in a 90 mm dish)
+const OAT_REACH = 10; // mold this close to an oat counts as nibbling it
+const MAX_OATS = 24;
+const NIBBLES_TO_FIND = 10; // mold near an oat in one frame before it counts as found
+const EAT_SPEED = 1 / 9000; // how much of an oat each nibble eats
+
+// Dante's patch: kibble dust around his edge draws the mold over, but it can't grow on him
+const KIBBLE_SMELL = 18; // how strongly the dust smells right at his edge
+const KIBBLE_RADIUS = 45; // how far away the mold can smell it, in cells
+const RING_WIDTH = 3; // the band of agar just outside him that has to stain before he shows
+const REVEAL_STAIN = 9; // how stained (out of 15) a ring cell has to be
+const REVEAL_SHARE = 0.65; // share of the ring that has to be that stained
+
+// Time
+const STEPS_PER_SECOND = 25;
+const MINUTES_PER_STEP = 1; // for the elapsed time in the readout
+const TRAIL_BRIGHTNESS = 9; // how bright a given amount of slime looks
+
+// What each cell of the dish is
+const OUTSIDE = 0;
+const AGAR = 1;
+const CAT_PATCH = 2;
+
+// The dish is a grid of cells; each map holds one number per cell
+const cellCount = gridSize * gridSize;
+const dishMap = new Uint8Array(cellCount); // OUTSIDE, AGAR or CAT_PATCH
+const occupiedMap = new Uint8Array(cellCount); // 1 where a bit of mold is standing
+let trailMap = new Float32Array(cellCount); // how much slime is on each cell
+let nextTrailMap = new Float32Array(cellCount); // scratch copy used while the slime spreads
+const stainMap = new Uint8Array(cellCount); // how stained the agar is, 0–15
+const foodMap = new Float32Array(cellCount); // how strongly each cell smells of oats or kibble (never drawn)
+const kibbleMap = new Float32Array(cellCount); // just the kibble dust around Dante, worked out once
+const oatMap = new Uint8Array(cellCount); // which oat each cell is next to (its spot in the oats list, plus 1), 0 for none
+const pulseMap = new Uint8Array(cellCount); // where each cell sits in the pulse, 0–63
+
+// Every bit of mold has a position and a direction it's facing
+const agentX = new Float32Array(MAX_AGENTS);
+const agentY = new Float32Array(MAX_AGENTS);
+const agentHeading = new Float32Array(MAX_AGENTS);
+let agentCount = 0;
+
+interface Oat {
+	number: number;
+	x: number;
+	y: number;
+	angle: number;
+	amountLeft: number; // 1 is whole, 0 is eaten
+	nibbles: number; // mold next to it this frame
+	found: boolean;
+	eaten: boolean;
+	coverage: number; // how covered in mold it looks, 0–1
+	fade: number; // fades from 1 to 0 once it's eaten
+	outline: Path2D; // its lumpy flake shape, centered on 0, 0
+	fibers: {
+		y: number;
+		start: number;
+		end: number;
+		bend: number;
+		light: boolean;
+		opacity: number;
+	}[];
+	fleck: { x: number; y: number; size: number } | null; // a speck of bran, on some flakes
+}
+
+let oats: Oat[] = [];
+let oatsDropped = 0;
+let oatsFound = 0;
+let oatsEaten = 0;
+let agentsToGrow = 0;
+let mealSpots: { x: number; y: number }[] = [];
+let stepCount = 0;
+let catWrittenUp = false;
+
+// Turn an x, y position into its spot in the maps
+function cellAt(x: number, y: number) {
+	return Math.floor(y) * gridSize + Math.floor(x);
+}
+
+// Mark every cell inside the rim as agar
+const dishCenter = gridSize / 2;
+const dishRadius = gridSize * 0.47;
+for (let y = 0; y < gridSize; y++) {
+	for (let x = 0; x < gridSize; x++) {
+		const distance = Math.hypot(x + 0.5 - dishCenter, y + 0.5 - dishCenter);
+		if (distance < dishRadius) {
+			dishMap[y * gridSize + x] = AGAR;
+		}
+	}
+}
+
+// Draw Dante on a hidden canvas, then mark every cell he covers as off-limits
+const catCanvas = document.createElement("canvas");
+catCanvas.width = gridSize;
+catCanvas.height = gridSize;
+const catContext = catCanvas.getContext("2d", {
+	willReadFrequently: true,
+}) as CanvasRenderingContext2D;
+const catScale = (catPatch.size * gridSize) / 64;
+catContext.translate(catPatch.x * gridSize, catPatch.y * gridSize);
+catContext.scale(catScale, catScale);
+catContext.fill(new Path2D(DANTE_BODY));
+catContext.lineWidth = 4;
+catContext.lineCap = "round";
+catContext.stroke(new Path2D(DANTE_TAIL));
+const catPixels = catContext.getImageData(0, 0, gridSize, gridSize).data;
+for (let cell = 0; cell < cellCount; cell++) {
+	const catAlpha = catPixels[cell * 4 + 3] ?? 0;
+	if (catAlpha > 96 && dishMap[cell] === AGAR) {
+		dishMap[cell] = CAT_PATCH;
+	}
+}
+
+// How far each agar cell is from Dante's edge, measured outward from every edge cell of his patch
+const distanceToDante = new Float32Array(cellCount).fill(Number.POSITIVE_INFINITY);
+for (let cell = 0; cell < cellCount; cell++) {
+	if (dishMap[cell] !== CAT_PATCH) continue;
+	const touchesAgar =
+		dishMap[cell - 1] === AGAR ||
+		dishMap[cell + 1] === AGAR ||
+		dishMap[cell - gridSize] === AGAR ||
+		dishMap[cell + gridSize] === AGAR;
+	if (!touchesAgar) continue;
+
+	const edgeX = (cell % gridSize) + 0.5;
+	const edgeY = Math.floor(cell / gridSize) + 0.5;
+	forEachCellInCircle(edgeX, edgeY, KIBBLE_RADIUS, (nearby, distance) => {
+		const cells = distance * KIBBLE_RADIUS;
+		if (cells < (distanceToDante[nearby] ?? Number.POSITIVE_INFINITY)) {
+			distanceToDante[nearby] = cells;
+		}
+	});
+}
+
+// The kibble smell fades out from his edge; the ring is the thin band right around him
+const danteRing: number[] = [];
+for (let cell = 0; cell < cellCount; cell++) {
+	const distance = distanceToDante[cell] ?? Number.POSITIVE_INFINITY;
+	if (distance > KIBBLE_RADIUS) continue;
+	const fade = 1 - distance / KIBBLE_RADIUS;
+	kibbleMap[cell] = KIBBLE_SMELL * fade * fade;
+	if (distance <= RING_WIDTH) danteRing.push(cell);
+}
+
+// Each cell's distance from the starting spot, so the pulse ripples outward from there
+const start = { x: startingSpot.x * gridSize, y: startingSpot.y * gridSize };
+for (let y = 0; y < gridSize; y++) {
+	for (let x = 0; x < gridSize; x++) {
+		const distance = Math.hypot(x - start.x, y - start.y);
+		pulseMap[y * gridSize + x] = Math.round(distance * 0.55) % 64;
+	}
+}
+
+// Start the blob as a small disc of mold at the starting spot
+function startBlob() {
+	agentCount = 0;
+	occupiedMap.fill(0);
+	let tries = 0;
+	while (agentCount < STARTING_AGENTS && tries < STARTING_AGENTS * 3) {
+		tries++;
+		const distance = Math.sqrt(Math.random()) * STARTING_RADIUS;
+		const angle = Math.random() * Math.PI * 2;
+		addAgent(start.x + Math.cos(angle) * distance, start.y + Math.sin(angle) * distance, angle);
+	}
+}
+
+// Add one bit of mold, as long as the spot is open agar
+function addAgent(x: number, y: number, heading: number) {
+	const cell = cellAt(x, y);
+	if (agentCount >= MAX_AGENTS) return;
+	if (dishMap[cell] !== AGAR) return;
+	if (occupiedMap[cell] === 1) return;
+
+	occupiedMap[cell] = 1;
+	agentX[agentCount] = x;
+	agentY[agentCount] = y;
+	agentHeading[agentCount] = heading;
+	agentCount++;
+}
+
+// Grow a new bit of mold right next to a spot
+function budFrom(x: number, y: number) {
+	const angle = Math.random() * Math.PI * 2;
+	addAgent(x + Math.cos(angle) * 1.5, y + Math.sin(angle) * 1.5, angle);
+}
+
+// Remove a bit of mold by moving the last one into its place, so the lists stay packed
+function removeAgent(index: number) {
+	occupiedMap[cellAt(agentX[index] ?? 0, agentY[index] ?? 0)] = 0;
+	agentCount--;
+	agentX[index] = agentX[agentCount] ?? 0;
+	agentY[index] = agentY[agentCount] ?? 0;
+	agentHeading[index] = agentHeading[agentCount] ?? 0;
+}
+
+// Run a function on every agar cell inside a circle
+function forEachCellInCircle(
+	centerX: number,
+	centerY: number,
+	radius: number,
+	callback: (cell: number, distance: number) => void,
+) {
+	const left = Math.max(0, Math.floor(centerX - radius));
+	const right = Math.min(gridSize - 1, Math.ceil(centerX + radius));
+	const top = Math.max(0, Math.floor(centerY - radius));
+	const bottom = Math.min(gridSize - 1, Math.ceil(centerY + radius));
+	for (let y = top; y <= bottom; y++) {
+		for (let x = left; x <= right; x++) {
+			const distance = Math.hypot(x + 0.5 - centerX, y + 0.5 - centerY) / radius;
+			const cell = y * gridSize + x;
+			if (distance <= 1 && dishMap[cell] === AGAR) {
+				callback(cell, distance);
+			}
+		}
+	}
+}
+
+// How strong the slime smells a few cells ahead in a given direction.
+// Walls and Dante's patch smell like -1, so the mold steers away from them.
+function smell(x: number, y: number, heading: number) {
+	const sniffX = Math.floor(x + Math.cos(heading) * SENSOR_DISTANCE);
+	const sniffY = Math.floor(y + Math.sin(heading) * SENSOR_DISTANCE);
+	if (sniffX < 0 || sniffY < 0 || sniffX >= gridSize || sniffY >= gridSize) return -1;
+
+	const cell = sniffY * gridSize + sniffX;
+	if (dishMap[cell] !== AGAR) return -1;
+
+	return (trailMap[cell] ?? 0) + (foodMap[cell] ?? 0);
+}
+
+// One tick of the simulation
+function step() {
+	moveAgents();
+	spreadTrail();
+	growOrStarve();
+	stepCount++;
+}
+
+// Every bit of mold sniffs, turns and takes one step forward
+function moveAgents() {
+	for (let i = 0; i < agentCount; i++) {
+		const x = agentX[i] ?? 0;
+		const y = agentY[i] ?? 0;
+		let heading = agentHeading[i] ?? 0;
+		const isExplorer = i % EXPLORER_EVERY === 0;
+
+		if (isExplorer) {
+			// Explorers ignore the smell and just wander
+			heading += (Math.random() - 0.5) * EXPLORER_WOBBLE;
+		} else {
+			// Sniff straight ahead, a little to the left and a little to the right
+			const ahead = smell(x, y, heading);
+			const left = smell(x, y, heading + SENSOR_ANGLE);
+			const right = smell(x, y, heading - SENSOR_ANGLE);
+
+			if (ahead > left && ahead > right) {
+				// Straight ahead smells best, so keep going
+			} else if (ahead < left && ahead < right) {
+				// Both sides smell better, so pick one at random
+				if (Math.random() < 0.5) {
+					heading += TURN_ANGLE;
+				} else {
+					heading -= TURN_ANGLE;
+				}
+			} else if (left > right) {
+				heading += TURN_ANGLE;
+			} else if (right > left) {
+				heading -= TURN_ANGLE;
+			}
+
+			heading += (Math.random() - 0.5) * WOBBLE;
+		}
+
+		// Work out where one step forward lands
+		const nextX = x + Math.cos(heading) * STEP_SIZE;
+		const nextY = y + Math.sin(heading) * STEP_SIZE;
+		const currentCell = cellAt(x, y);
+		const nextCell = cellAt(nextX, nextY);
+
+		// Blocked by the rim, by Dante, or by another bit of mold: face a new way and wait a turn
+		const hitsWall = dishMap[nextCell] !== AGAR;
+		const someoneThere = nextCell !== currentCell && occupiedMap[nextCell] === 1;
+		if (hitsWall || someoneThere) {
+			agentHeading[i] = Math.random() * Math.PI * 2;
+			continue;
+		}
+
+		// Move into the new cell
+		occupiedMap[currentCell] = 0;
+		occupiedMap[nextCell] = 1;
+		agentX[i] = nextX;
+		agentY[i] = nextY;
+		agentHeading[i] = heading;
+
+		// Leave slime behind (explorers only leave a little)
+		if (isExplorer) {
+			trailMap[nextCell] = (trailMap[nextCell] ?? 0) + TRAIL_DEPOSIT * 0.1;
+		} else {
+			trailMap[nextCell] = (trailMap[nextCell] ?? 0) + TRAIL_DEPOSIT;
+		}
+
+		// Now and then, stain the agar a little more yellow
+		const stain = stainMap[nextCell] ?? 0;
+		if (stain < STAIN_LEVELS - 1 && Math.random() < STAIN_CHANCE) {
+			stainMap[nextCell] = stain + 1;
+		}
+
+		// Standing next to an oat counts as a nibble
+		const oatNumber = oatMap[nextCell] ?? 0;
+		if (oatNumber > 0) {
+			const oat = oats[oatNumber - 1];
+			if (oat) oat.nibbles++;
+		}
+	}
+}
+
+// Spread the slime to the neighboring cells and let some of it evaporate
+function spreadTrail() {
+	for (let y = 1; y < gridSize - 1; y++) {
+		for (let x = 1; x < gridSize - 1; x++) {
+			const cell = y * gridSize + x;
+			if (dishMap[cell] !== AGAR) {
+				nextTrailMap[cell] = 0;
+				continue;
+			}
+
+			// Average the cell with the 8 around it
+			const above = cell - gridSize;
+			const below = cell + gridSize;
+			const total =
+				(trailMap[above - 1] ?? 0) +
+				(trailMap[above] ?? 0) +
+				(trailMap[above + 1] ?? 0) +
+				(trailMap[cell - 1] ?? 0) +
+				(trailMap[cell] ?? 0) +
+				(trailMap[cell + 1] ?? 0) +
+				(trailMap[below - 1] ?? 0) +
+				(trailMap[below] ?? 0) +
+				(trailMap[below + 1] ?? 0);
+			nextTrailMap[cell] = (total / 9) * (1 - TRAIL_FADE);
+		}
+	}
+
+	// Swap the maps, so the new one becomes the current one
+	const oldTrailMap = trailMap;
+	trailMap = nextTrailMap;
+	nextTrailMap = oldTrailMap;
+}
+
+// Grow to the resting size, grow more after a meal, and shrink back when there's nothing to eat
+function growOrStarve() {
+	// Bud new mold off random existing mold until it reaches the resting size
+	if (agentCount < RESTING_AGENTS) {
+		for (let n = 0; n < NEW_AGENTS_PER_STEP; n++) {
+			const parent = Math.floor(Math.random() * agentCount);
+			budFrom(agentX[parent] ?? start.x, agentY[parent] ?? start.y);
+		}
+	}
+
+	// With nothing left to eat, slowly shrink back to the resting size
+	const hasFood = oats.some((oat) => !oat.eaten);
+	if (agentCount > RESTING_AGENTS && agentsToGrow <= 0 && !hasFood) {
+		for (let n = 0; n < STARVING_AGENTS_PER_STEP; n++) {
+			removeAgent(Math.floor(Math.random() * agentCount));
+		}
+	}
+
+	// After a meal, bud new mold around the spots where it ate
+	if (agentsToGrow > 0 && mealSpots.length > 0) {
+		for (let n = 0; n < MEAL_AGENTS_PER_STEP && agentsToGrow > 0; n++) {
+			const spot = mealSpots[Math.floor(Math.random() * mealSpots.length)];
+			if (spot) {
+				budFrom(spot.x + (Math.random() - 0.5) * 8, spot.y + (Math.random() - 0.5) * 8);
+			}
+			agentsToGrow--;
+		}
+		if (agentsToGrow <= 0) {
+			mealSpots = [];
+		}
+	}
+}
+
+// Note which oat each nearby cell belongs to, so moveAgents can count nibbles
+function updateOatMap() {
+	oatMap.fill(0);
+	oats.forEach((oat, index) => {
+		if (oat.eaten) return;
+		forEachCellInCircle(oat.x, oat.y, OAT_REACH, (cell) => {
+			oatMap[cell] = index + 1;
+		});
+	});
+	updateFoodMap();
+}
+
+// The kibble dust around Dante always smells a little. On top of that, every uneaten oat
+// smells strongest right next to it, fading out to OAT_SMELL_RADIUS.
+// This lives in its own map so the smell isn't drawn as mold.
+function updateFoodMap() {
+	foodMap.set(kibbleMap);
+	for (const oat of oats) {
+		if (oat.eaten) continue;
+		const strength = OAT_SMELL * (0.4 + 0.6 * oat.amountLeft);
+		forEachCellInCircle(oat.x, oat.y, OAT_SMELL_RADIUS, (cell, distance) => {
+			foodMap[cell] = (foodMap[cell] ?? 0) + strength * (1 - distance) * (1 - distance);
+		});
+	}
+}
+
+// Once a frame: find and eat oats
+function checkOats(stepsTaken: number) {
+	let oatEatenThisFrame = false;
+
+	for (const oat of oats) {
+		// Eaten oats just fade away
+		if (oat.eaten) {
+			oat.fade = Math.max(0, oat.fade - 0.01);
+			continue;
+		}
+
+		// The more mold on an oat, the yellower it looks
+		const target = Math.min(1, oat.nibbles / (20 * Math.max(1, stepsTaken)));
+		oat.coverage += (target - oat.coverage) * 0.05;
+
+		// Enough mold nearby means it's been found
+		if (!oat.found && oat.nibbles >= NIBBLES_TO_FIND) {
+			oat.found = true;
+			oatsFound++;
+			writeInNotebook(`Found oat ${oat.number}.`);
+		}
+
+		// Once found, every nibble eats a little of it
+		if (oat.found) {
+			oat.amountLeft -= oat.nibbles * EAT_SPEED;
+		}
+		oat.nibbles = 0;
+
+		// All gone: the blob grows from where it ate
+		if (oat.amountLeft <= 0) {
+			oat.amountLeft = 0;
+			oat.eaten = true;
+			oatsEaten++;
+			oatEatenThisFrame = true;
+			agentsToGrow += AGENTS_PER_OAT;
+			mealSpots.push({ x: oat.x, y: oat.y });
+			if (oatsEaten === 1) {
+				writeInNotebook(`Ate oat ${oat.number}. Grew.`);
+			} else {
+				writeInNotebook(`Ate oat ${oat.number}. Grew again.`);
+			}
+		}
+	}
+
+	// Drop oats that have finished fading
+	oats = oats.filter((oat) => !oat.eaten || oat.fade > 0);
+	if (oatEatenThisFrame) {
+		updateOatMap();
+	} else if (oats.length > 0) {
+		updateFoodMap();
+	}
+}
+
+// Colors, as [red, green, blue]
+type Color = [number, number, number];
+const AGAR_COLOR: Color = [54, 46, 34];
+const STAIN_COLOR: Color = [90, 76, 36];
+const MOLD_COLORS: { at: number; color: Color }[] = [
+	{ at: 0, color: [96, 78, 20] },
+	{ at: 0.25, color: [196, 150, 18] },
+	{ at: 0.6, color: [246, 202, 38] },
+	{ at: 1, color: [255, 244, 168] },
+];
+
+// Mix two colors: 0 is all the first color, 1 is all the second
+function blend(from: Color, to: Color, amount: number): Color {
+	return [
+		from[0] + (to[0] - from[0]) * amount,
+		from[1] + (to[1] - from[1]) * amount,
+		from[2] + (to[2] - from[2]) * amount,
+	];
+}
+
+// The mold's color at a strength from 0 (faint) to 1 (thickest)
+function moldColor(strength: number): Color {
+	let previous = MOLD_COLORS[0] as { at: number; color: Color };
+	for (const stop of MOLD_COLORS) {
+		if (strength <= stop.at) {
+			if (stop.at === previous.at) return stop.color;
+			return blend(previous.color, stop.color, (strength - previous.at) / (stop.at - previous.at));
+		}
+		previous = stop;
+	}
+	return previous.color;
+}
+
+// Work out every color ahead of time, so drawing a frame is just a lookup:
+// one row per stain level, with 256 mold strengths in each
+const palette: Color[] = [];
+for (let stain = 0; stain < STAIN_LEVELS; stain++) {
+	const agarColor = blend(AGAR_COLOR, STAIN_COLOR, stain / (STAIN_LEVELS - 1));
+	for (let strength = 0; strength < 256; strength++) {
+		const amount = strength / 255;
+		const opacity = Math.min(1, amount * 2.4);
+		const color = blend(agarColor, moldColor(amount), opacity);
+		palette.push([Math.floor(color[0]), Math.floor(color[1]), Math.floor(color[2])]);
+	}
+}
+
+// The agar canvas has one pixel per cell; CSS stretches it to fit the dish
+const agarContext = agarCanvas.getContext("2d") as CanvasRenderingContext2D;
+const agarImage = agarContext.createImageData(gridSize, gridSize);
+const pulseBrightness = new Float32Array(64);
+
+function drawAgar(time: number) {
+	// This frame's pulse: a slow wave of brightness rippling out from the start
+	for (let p = 0; p < 64; p++) {
+		if (reducedMotion.matches) {
+			pulseBrightness[p] = 1;
+		} else {
+			pulseBrightness[p] = 1 + 0.16 * Math.sin((p / 64) * Math.PI * 2 - time / 260);
+		}
+	}
+
+	const pixels = agarImage.data;
+	for (let cell = 0; cell < cellCount; cell++) {
+		const pixel = cell * 4;
+		const kind = dishMap[cell];
+
+		// Outside the dish stays see-through
+		if (kind === OUTSIDE) {
+			pixels[pixel + 3] = 0;
+			continue;
+		}
+
+		// Dante's patch looks like clean agar; it only shows once the dish around it yellows
+		let color = AGAR_COLOR;
+		if (kind === AGAR) {
+			// Turn the slime into a strength from 0 to 255; thick tubes level off instead of going white
+			const slime = (trailMap[cell] ?? 0) * TRAIL_BRIGHTNESS;
+			let strength = 255 * (1 - Math.exp(-slime / 255));
+			strength = strength * (pulseBrightness[pulseMap[cell] ?? 0] ?? 1);
+			strength = Math.min(255, Math.floor(strength));
+			const stain = stainMap[cell] ?? 0;
+			color = palette[stain * 256 + strength] ?? AGAR_COLOR;
+		}
+
+		pixels[pixel] = color[0];
+		pixels[pixel + 1] = color[1];
+		pixels[pixel + 2] = color[2];
+		pixels[pixel + 3] = 255;
+	}
+	agarContext.putImageData(agarImage, 0, 0);
+	drawProps();
+}
+
+// The props canvas draws the oats sharp, at full screen resolution
+const propsContext = propsCanvas.getContext("2d") as CanvasRenderingContext2D;
+let propsScale = 1;
+
+function resizeProps() {
+	const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+	const size = dish.clientWidth * pixelRatio;
+	propsCanvas.width = Math.round(size);
+	propsCanvas.height = Math.round(size);
+	propsScale = size / gridSize;
+	drawProps();
+}
+new ResizeObserver(resizeProps).observe(dish);
+
+// Oat colors: a creamy middle where the flake is thickest, thinning to a pale, see-through edge
+const OAT_MIDDLE: Color = [222, 204, 164];
+const OAT_BODY: Color = [234, 220, 188];
+const OAT_EDGE: Color = [246, 238, 216];
+const OAT_FIBER_DARK = "rgba(166, 134, 86, 0.5)";
+const OAT_FIBER_LIGHT = "rgba(255, 252, 242, 0.7)";
+const MOLD_ON_OAT: Color = [238, 192, 40];
+
+// Turn a color into a CSS rgb() string, tinted toward the mold's yellow as it covers the oat
+function oatColor(color: Color, coverage: number) {
+	const tinted = blend(color, MOLD_ON_OAT, coverage * 0.85);
+	return `rgb(${Math.floor(tinted[0])}, ${Math.floor(tinted[1])}, ${Math.floor(tinted[2])})`;
+}
+
+// Every rolled oat is a little different: a flat, lumpy, roundish flake, narrower at one end
+function makeOatOutline() {
+	const halfLength = OAT_LENGTH / 2;
+	const halfWidth = halfLength * (0.72 + Math.random() * 0.16);
+	const taper = 0.1 + Math.random() * 0.16;
+	const lumpPhaseA = Math.random() * Math.PI * 2;
+	const lumpPhaseB = Math.random() * Math.PI * 2;
+
+	const points: { x: number; y: number }[] = [];
+	for (let n = 0; n < 32; n++) {
+		const angle = (n / 32) * Math.PI * 2;
+		const lumpiness =
+			1 +
+			0.1 * Math.sin(angle * 3 + lumpPhaseA) +
+			0.06 * Math.sin(angle * 5 + lumpPhaseB) +
+			(Math.random() - 0.5) * 0.08;
+		const x = Math.cos(angle) * halfLength * lumpiness;
+		const narrowing = 1 - taper * (x / halfLength);
+		const y = Math.sin(angle) * halfWidth * lumpiness * narrowing;
+		points.push({ x: x, y: y });
+	}
+
+	// Join the points with smooth curves, through the middle of each pair
+	const outline = new Path2D();
+	const first = points[0] as { x: number; y: number };
+	const last = points[points.length - 1] as { x: number; y: number };
+	outline.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
+	for (let n = 0; n < points.length; n++) {
+		const point = points[n] as { x: number; y: number };
+		const next = points[(n + 1) % points.length] as { x: number; y: number };
+		outline.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+	}
+	outline.closePath();
+	return { outline: outline, halfWidth: halfWidth };
+}
+
+// Faint, broken lines along the flake, where it was rolled flat
+function makeOatFibers(halfWidth: number) {
+	const fibers = [];
+	const count = 4 + Math.floor(Math.random() * 4);
+	for (let n = 0; n < count; n++) {
+		fibers.push({
+			y: (Math.random() - 0.5) * halfWidth * 1.4,
+			start: -OAT_LENGTH * (0.15 + Math.random() * 0.3),
+			end: OAT_LENGTH * (0.15 + Math.random() * 0.3),
+			bend: (Math.random() - 0.5) * 1.5,
+			light: Math.random() < 0.5,
+			opacity: 0.2 + Math.random() * 0.3,
+		});
+	}
+	return fibers;
+}
+
+// Many flakes keep a brownish bit of bran at the narrow tip
+function makeOatFleck(halfWidth: number) {
+	if (Math.random() > 0.6) return null;
+	return {
+		x: OAT_LENGTH * (0.36 + Math.random() * 0.08),
+		y: (Math.random() - 0.5) * halfWidth * 0.4,
+		size: 0.9 + Math.random() * 0.9,
+	};
+}
+
+function drawOat(context: CanvasRenderingContext2D, oat: Oat) {
+	let size = Math.max(0.15, Math.sqrt(oat.amountLeft));
+	if (oat.eaten) size = size * oat.fade;
+	if (size <= 0.01) return;
+
+	context.save();
+	context.translate(oat.x, oat.y);
+	context.rotate(oat.angle);
+	context.scale(size, size);
+	if (oat.eaten) context.globalAlpha = oat.fade;
+
+	// A soft shadow on the agar underneath it
+	context.shadowColor = "rgba(0, 0, 0, 0.35)";
+	context.shadowBlur = 2.5 * propsScale * size;
+	context.shadowOffsetX = 0.5 * propsScale * size;
+	context.shadowOffsetY = 1 * propsScale * size;
+
+	// Creamy in the middle, pale and thin at the edges
+	const gradient = context.createRadialGradient(-1, -1, 0, 0, 0, OAT_LENGTH / 2);
+	gradient.addColorStop(0, oatColor(OAT_MIDDLE, oat.coverage));
+	gradient.addColorStop(0.6, oatColor(OAT_BODY, oat.coverage));
+	gradient.addColorStop(1, oatColor(OAT_EDGE, oat.coverage));
+	context.fillStyle = gradient;
+	context.fill(oat.outline);
+	context.shadowColor = "transparent";
+
+	// Fibers and the bran fleck stay inside the flake
+	context.save();
+	context.clip(oat.outline);
+	context.lineCap = "round";
+	context.lineWidth = 0.35;
+	for (const fiber of oat.fibers) {
+		context.globalAlpha = fiber.opacity * (oat.eaten ? oat.fade : 1);
+		if (fiber.light) {
+			context.strokeStyle = OAT_FIBER_LIGHT;
+		} else {
+			context.strokeStyle = OAT_FIBER_DARK;
+		}
+		context.beginPath();
+		context.moveTo(fiber.start, fiber.y);
+		context.quadraticCurveTo(
+			(fiber.start + fiber.end) / 2,
+			fiber.y + fiber.bend,
+			fiber.end,
+			fiber.y,
+		);
+		context.stroke();
+	}
+	if (oat.fleck) {
+		context.globalAlpha = 0.55 * (oat.eaten ? oat.fade : 1);
+		context.fillStyle = "rgb(150, 104, 56)";
+		context.beginPath();
+		context.ellipse(
+			oat.fleck.x,
+			oat.fleck.y,
+			oat.fleck.size * 2,
+			oat.fleck.size,
+			0,
+			0,
+			Math.PI * 2,
+		);
+		context.fill();
+	}
+	context.restore();
+
+	// A faint edge, just enough to separate it from the agar
+	context.strokeStyle = oatColor([176, 150, 104], oat.coverage);
+	context.lineWidth = 0.3;
+	context.globalAlpha = 0.35 * (oat.eaten ? oat.fade : 1);
+	context.stroke(oat.outline);
+	context.restore();
+}
+
+function drawProps() {
+	const context = propsContext;
+	context.setTransform(1, 0, 0, 1, 0, 0);
+	context.clearRect(0, 0, propsCanvas.width, propsCanvas.height);
+	context.setTransform(propsScale, 0, 0, propsScale, 0, 0);
+	for (const oat of oats) {
+		drawOat(context, oat);
+	}
+}
+
+function isAgar(x: number, y: number) {
+	return dishMap[cellAt(x, y)] === AGAR;
+}
+
+function dropOat(x: number, y: number) {
+	if (!isAgar(x, y)) return false;
+
+	const uneatenOats = oats.filter((oat) => !oat.eaten);
+	if (uneatenOats.length >= MAX_OATS) {
+		announce("That’s plenty of oats for one dish.");
+		return false;
+	}
+
+	oatsDropped++;
+	const shape = makeOatOutline();
+	oats.push({
+		number: oatsDropped,
+		x: x,
+		y: y,
+		angle: Math.random() * Math.PI * 2,
+		amountLeft: 1,
+		nibbles: 0,
+		found: false,
+		eaten: false,
+		coverage: 0,
+		fade: 1,
+		outline: shape.outline,
+		fibers: makeOatFibers(shape.halfWidth),
+		fleck: makeOatFleck(shape.halfWidth),
+	});
+	updateOatMap();
+	drawProps();
+	announce(`Oat ${oatsDropped} dropped ${describeSpot(x, y)}.`);
+	return true;
+}
+
+// Describe a spot for screen readers, like "at 4 o'clock, near the rim"
+function describeSpot(x: number, y: number) {
+	const distance = Math.hypot(x - dishCenter, y - dishCenter) / dishRadius;
+	if (distance < 0.18) return "in the middle";
+
+	const turn = Math.atan2(x - dishCenter, dishCenter - y) / (Math.PI * 2);
+	let hour = Math.round((turn * 12 + 12) % 12);
+	if (hour === 0) hour = 12;
+
+	if (distance > 0.7) {
+		return `at ${hour} o’clock, near the rim`;
+	}
+	return `at ${hour} o’clock, halfway out`;
+}
+
+function announce(text: string) {
+	statusMessage.textContent = text;
+}
+
+// Clicking or tapping the dish drops an oat where you pressed
+dish.addEventListener("pointerdown", (event) => {
+	// Clicks on the hidden cat belong to the cat
+	if ((event.target as Element).closest(".wwo-cat")) return;
+
+	const box = dish.getBoundingClientRect();
+	const x = ((event.clientX - box.left) / box.width) * gridSize;
+	const y = ((event.clientY - box.top) / box.height) * gridSize;
+	dropOat(x, y);
+	dropper.hidden = true;
+});
+
+// From the keyboard, a dropper ring moves around the dish
+const dropperSpot = { x: dishCenter, y: dishCenter };
+let announceTimer = 0;
+
+function showDropper() {
+	dropper.hidden = false;
+	dropper.style.left = `${(dropperSpot.x / gridSize) * 100}%`;
+	dropper.style.top = `${(dropperSpot.y / gridSize) * 100}%`;
+}
+
+function moveDropper(moveX: number, moveY: number) {
+	const nextX = dropperSpot.x + moveX;
+	const nextY = dropperSpot.y + moveY;
+
+	// Keep it inside the rim
+	if (Math.hypot(nextX - dishCenter, nextY - dishCenter) < dishRadius - 3) {
+		dropperSpot.x = nextX;
+		dropperSpot.y = nextY;
+	}
+	showDropper();
+
+	// Say where it is once it stops moving
+	clearTimeout(announceTimer);
+	announceTimer = window.setTimeout(() => {
+		announce(`Dropper ${describeSpot(dropperSpot.x, dropperSpot.y)}.`);
+	}, 350);
+}
+
+dish.addEventListener("keydown", (event) => {
+	// Shift moves in small steps
+	let distance = 12;
+	if (event.shiftKey) distance = 3;
+
+	if (event.key === "ArrowUp") {
+		event.preventDefault();
+		moveDropper(0, -distance);
+	} else if (event.key === "ArrowDown") {
+		event.preventDefault();
+		moveDropper(0, distance);
+	} else if (event.key === "ArrowLeft") {
+		event.preventDefault();
+		moveDropper(-distance, 0);
+	} else if (event.key === "ArrowRight") {
+		event.preventDefault();
+		moveDropper(distance, 0);
+	} else if (event.key === "Enter" || event.key === " ") {
+		event.preventDefault();
+		showDropper();
+		dropOat(dropperSpot.x, dropperSpot.y);
+	}
+});
+
+// Show the dropper when the dish gets keyboard focus, hide it when focus leaves
+dish.addEventListener("focus", () => {
+	if (dish.matches(":focus-visible")) showDropper();
+});
+dish.addEventListener("blur", () => {
+	dropper.hidden = true;
+});
+
+// Simulated time, like "6 h 05 m"
+function timeStamp() {
+	const minutes = stepCount * MINUTES_PER_STEP;
+	const hours = Math.floor(minutes / 60);
+	const leftoverMinutes = String(minutes % 60).padStart(2, "0");
+	return `${hours} h ${leftoverMinutes} m`;
+}
+
+// Add a line to today's notebook log, keeping only the last 9
+function writeInNotebook(text: string) {
+	const entry = document.createElement("li");
+	const time = document.createElement("time");
+	const words = document.createElement("span");
+	time.textContent = timeStamp();
+	words.textContent = text;
+	entry.append(time, " ", words);
+	notebookLog.append(entry);
+
+	while (notebookLog.children.length > 9) {
+		notebookLog.firstElementChild?.remove();
+	}
+}
+
+// Start over with clean agar and a new blob
+function startFreshPlate() {
+	trailMap.fill(0);
+	nextTrailMap.fill(0);
+	stainMap.fill(0);
+	danteRevealed = false;
+	catSpot.hidden = true;
+	oats = [];
+	agentsToGrow = 0;
+	mealSpots = [];
+	oatsDropped = 0;
+	oatsFound = 0;
+	oatsEaten = 0;
+	stepCount = 0;
+	updateOatMap();
+	startBlob();
+	notebookLog.replaceChildren();
+	writeInNotebook("Fresh plate.");
+}
+freshPlateButton.addEventListener("click", startFreshPlate);
+
+// Finding Dante gets a line in the notebook (once)
+document.addEventListener("wwo:cat-found", () => {
+	if (catWrittenUp) return;
+	catWrittenUp = true;
+	writeInNotebook("Contaminant identified: Dante.");
+});
+
+// Dante only shows once the agar right around him has stained; until then he can't be clicked
+let danteRevealed = false;
+
+function checkForDante() {
+	if (danteRevealed) return;
+
+	let stainedCells = 0;
+	for (const cell of danteRing) {
+		if ((stainMap[cell] ?? 0) >= REVEAL_STAIN) stainedCells++;
+	}
+	if (stainedCells / danteRing.length < REVEAL_SHARE) return;
+
+	// HiddenCat remembers an earlier find and shows "Dante was here." straight away.
+	// Here he should only say that once he's clicked on this visit.
+	catButton.classList.remove("is-found");
+
+	danteRevealed = true;
+	catSpot.hidden = false;
+	writeInNotebook("Clean patch, left side. Has… ears?");
+}
+
+function updateReadout() {
+	elapsedReadout.textContent = timeStamp();
+	foundReadout.textContent = String(oatsFound);
+	eatenReadout.textContent = String(oatsEaten);
+	nucleiReadout.textContent = `~${(agentCount / 2500).toFixed(1)} million`;
+}
+
+// Only run while the dish is on screen
+let dishOnScreen = true;
+new IntersectionObserver((entries) => {
+	dishOnScreen = entries[0]?.isIntersecting ?? true;
+}).observe(dish);
+
+// The main loop: the same number of steps per second on any screen (60 Hz, 120 Hz…)
+let lastFrameTime = 0;
+let stepsOwed = 0;
+let lastReadoutTime = 0;
+
+function animate(time: number) {
+	requestAnimationFrame(animate);
+
+	const elapsed = Math.min(100, time - lastFrameTime);
+	lastFrameTime = time;
+	if (!dishOnScreen) return;
+
+	// Catch up on the steps due since the last frame, but never more than 3 at once
+	stepsOwed = Math.min(3, stepsOwed + (elapsed / 1000) * STEPS_PER_SECOND);
+	const stepsToTake = Math.floor(stepsOwed);
+	stepsOwed -= stepsToTake;
+	for (let s = 0; s < stepsToTake; s++) {
+		step();
+	}
+
+	checkOats(stepsToTake);
+	drawAgar(time);
+
+	// The readout and the check for Dante only need to run twice a second
+	if (time - lastReadoutTime > 500) {
+		lastReadoutTime = time;
+		updateReadout();
+		checkForDante();
+	}
+}
+
+startBlob();
+updateOatMap();
+
+// Dev shortcuts: ?jump=settled and ?jump=grown skip ahead (see README.md#days-with-dev-shortcuts)
+const jump = import.meta.env.DEV ? new URLSearchParams(location.search).get("jump") : null;
+if (jump === "settled") {
+	for (let s = 0; s < 1500; s++) {
+		step();
+		if (s % 20 === 0) drawAgar(0);
+	}
+} else if (jump === "grown") {
+	const oatSpots = [
+		[0.5, 0.2],
+		[0.42, 0.45],
+		[0.25, 0.4],
+		[0.1, 0.52],
+		[0.4, 0.6],
+		[0.32, 0.78],
+		[0.14, 0.72],
+	];
+	for (const [x, y] of oatSpots) {
+		dropOat((x ?? 0) * gridSize, (y ?? 0) * gridSize);
+	}
+	for (let s = 0; s < 1400; s++) {
+		step();
+		checkOats(1);
+		if (s % 20 === 0) drawAgar(0);
+	}
+}
+checkForDante();
+
+requestAnimationFrame(animate);
+</script>
+
+<style>
+:root {
+	--bench: #121013;
+	--bench-2: #1c191d;
+	--ink: #ece6dc;
+	--muted: #a49b8e;
+	--tape: #ff5fa2;
+	--tape-ink: #1a1014;
+	--paper: #f3efe4;
+	--grid: rgba(70, 120, 200, 0.18);
+	--pencil: #3c3a44;
+	--yellow: #f6ca26;
+	--plex: var(--font-ibm-plex-mono);
+	--hand: var(--font-kalam);
+	--marker: var(--font-permanent-marker);
+}
+body {
+	margin: 0;
+	min-block-size: 100dvh;
+	color: var(--ink);
+	font-family: var(--plex), ui-monospace, monospace;
+	background:
+		radial-gradient(60% 50% at 38% 40%, rgba(255, 238, 200, 0.08), transparent 70%),
+		radial-gradient(circle at 20% 80%, var(--bench-2), transparent 50%), var(--bench);
+}
+.visually-hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.bench {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+	gap: clamp(1.5rem, 4vw, 4rem);
+	align-items: start;
+	max-inline-size: 76rem;
+	margin-inline: auto;
+	padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem) 4rem;
+}
+
+.plate {
+	display: grid;
+	justify-items: center;
+	gap: 1.1rem;
+}
+
+.tape {
+	position: relative;
+	z-index: 2;
+	margin-block-end: -2.6rem;
+	padding: 0.3rem 1.4rem 0.45rem;
+	color: var(--tape-ink);
+	text-align: center;
+	background: var(--tape);
+	rotate: -3deg;
+	clip-path: polygon(
+		0 6%,
+		3% 0,
+		8% 9%,
+		14% 2%,
+		100% 0,
+		98% 50%,
+		100% 100%,
+		92% 94%,
+		86% 100%,
+		0 100%,
+		2% 52%
+	);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.tape h1 {
+	margin: 0;
+	font: 2.4rem / 1 var(--marker);
+	letter-spacing: 0.04em;
+}
+.tape p {
+	margin: 0;
+	font: 0.95rem / 1.2 var(--marker);
+}
+.tape i {
+	font-style: normal;
+}
+
+.dish {
+	position: relative;
+	inline-size: min(100%, 78vh, 46rem);
+	aspect-ratio: 1;
+	border-radius: 50%;
+	cursor: crosshair;
+	touch-action: manipulation;
+	background: radial-gradient(circle, rgba(255, 250, 235, 0.06) 60%, rgba(255, 250, 235, 0.16));
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.28),
+		0 0 0 7px rgba(225, 235, 245, 0.07),
+		0 0 0 8px rgba(255, 255, 255, 0.22),
+		0 24px 50px rgba(0, 0, 0, 0.6),
+		0 4px 10px rgba(0, 0, 0, 0.4);
+	outline: none;
+}
+.dish:focus-visible {
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.28),
+		0 0 0 7px rgba(225, 235, 245, 0.07),
+		0 0 0 8px rgba(255, 255, 255, 0.22),
+		0 0 0 12px var(--tape),
+		0 24px 50px rgba(0, 0, 0, 0.6);
+}
+.dish canvas {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+	border-radius: 50%;
+}
+.glass {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	pointer-events: none;
+	background:
+		radial-gradient(70% 40% at 30% 18%, rgba(255, 255, 255, 0.13), transparent 60%),
+		radial-gradient(circle, transparent 93%, rgba(255, 255, 255, 0.1) 95.5%, transparent 97%);
+	box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08);
+}
+.cat-spot {
+	position: absolute;
+	z-index: 1;
+}
+.cat-spot[hidden] {
+	display: none;
+}
+.dropper {
+	position: absolute;
+	inline-size: 1.6rem;
+	aspect-ratio: 1;
+	translate: -50% -50%;
+	border: 2px solid var(--tape);
+	border-radius: 50%;
+	pointer-events: none;
+	box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+.dropper::before,
+.dropper::after {
+	content: "";
+	position: absolute;
+	inset: 50% -0.5rem auto;
+	block-size: 2px;
+	translate: 0 -50%;
+	background: var(--tape);
+}
+.dropper::after {
+	rotate: 90deg;
+}
+
+.hint {
+	max-inline-size: 34rem;
+	margin: 0.3rem 0 0;
+	font: 0.85rem / 1.5 var(--plex);
+	color: var(--muted);
+	text-align: center;
+}
+
+.tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: center;
+	justify-content: center;
+}
+.fresh:focus-visible {
+	outline: 3px solid var(--tape);
+	outline-offset: 3px;
+}
+.fresh {
+	padding: 0.5rem 0.9rem;
+	font: 500 0.9rem / 1 var(--plex);
+	color: var(--ink);
+	background: none;
+	border: 1px dashed rgba(255, 255, 255, 0.3);
+	border-radius: 999px;
+	cursor: pointer;
+}
+.fresh:hover {
+	border-color: rgba(255, 255, 255, 0.55);
+}
+
+.readout {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.4rem;
+	justify-content: center;
+	margin: 0.2rem 0 0;
+	font: 0.78rem / 1.3 var(--plex);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+}
+.readout div {
+	display: flex;
+	gap: 0.45rem;
+}
+.readout dd {
+	margin: 0;
+	color: var(--yellow);
+	font-variant-numeric: tabular-nums;
+}
+
+.notebook {
+	position: relative;
+	padding: 1.4rem 1.4rem 1.6rem 2.6rem;
+	color: var(--pencil);
+	font: 1.05rem / 1.45 var(--hand);
+	background:
+		linear-gradient(
+			90deg,
+			transparent 1.6rem,
+			rgba(255, 95, 162, 0.55) 1.6rem 1.7rem,
+			transparent 1.7rem
+		),
+		linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 1.25rem,
+		linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 1.25rem 100%,
+		var(--paper);
+	border-radius: 3px;
+	rotate: 1.2deg;
+	box-shadow:
+		0 18px 40px rgba(0, 0, 0, 0.5),
+		0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.notebook h2 {
+	margin: 0 0 0.6rem;
+	font: 700 1.6rem / 1 var(--hand);
+	color: #1d1b22;
+}
+.notebook h3 {
+	margin: 1.2rem 0 0.4rem;
+	font: 700 1.15rem / 1.2 var(--hand);
+	color: #1d1b22;
+}
+.notebook ol {
+	display: grid;
+	gap: 0.45rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.notebook :global(li) {
+	display: grid;
+	grid-template-columns: 3.1rem 1fr;
+	gap: 0.4rem;
+}
+.notebook :global(time) {
+	font: 0.72rem / 2 var(--plex);
+	color: #6c6878;
+}
+.log :global(li) {
+	grid-template-columns: 4.8rem 1fr;
+	animation: ink 0.6s ease-out;
+}
+.log :global(span) {
+	color: #2f4f9c;
+}
+@keyframes ink {
+	from {
+		opacity: 0;
+		translate: 0 0.3rem;
+	}
+}
+
+@media (max-width: 860px) {
+	.bench {
+		grid-template-columns: 1fr;
+	}
+	.dish {
+		inline-size: min(100%, 34rem);
+	}
+	.notebook {
+		rotate: 0.6deg;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+</style>
