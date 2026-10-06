@@ -67,6 +67,7 @@
 	"html": {
 		"formatter": {
 			"selfCloseVoidElements": "always",
+			"indentScriptAndStyle": true,
 			"enabled": true
 		},
 		"experimentalFullSupportEnabled": true

@@ -76,1301 +76,1301 @@ const CAT_CELL = "R44";
 </Day>
 
 <script>
-type Mood = "happy" | "proud" | "shy" | "worried" | "sleepy" | "giddy" | "clever" | "dizzy";
-interface Entry {
-	raw: string;
-	id: number;
-}
-interface Critter {
-	el: HTMLElement;
-	val: HTMLElement;
-	id: number;
-	shown: string;
-}
-
-class Err {
-	code: string;
-	constructor(code: string) {
-		this.code = code;
+	type Mood = "happy" | "proud" | "shy" | "worried" | "sleepy" | "giddy" | "clever" | "dizzy";
+	interface Entry {
+		raw: string;
+		id: number;
 	}
-}
-type Val = number | string | Err;
-
-const COLS = 20;
-const ROWS = 50;
-const ROW_H = 36;
-const RAND_EVERY = 1800;
-const BLINK_EVERY = 6000;
-const BLINK_TICK = 250;
-const MOOD_WORDS: Record<Mood, string> = {
-	happy: "content",
-	proud: "very proud",
-	shy: "a little shy",
-	worried: "worried",
-	sleepy: "asleep",
-	giddy: "giddy",
-	clever: "pleased with itself",
-	dizzy: "dizzy",
-};
-const START: Record<string, string> = {
-	A1: "Snack",
-	B1: "Qty",
-	C1: "Price",
-	D1: "Cost",
-	A2: "Pretzels",
-	B2: "4",
-	C2: "3.25",
-	A3: "Seaweed",
-	B3: "12",
-	C3: "1.1",
-	A4: "Gummy bears",
-	B4: "3",
-	C4: "2.75",
-	A5: "Clementines",
-	B5: "20",
-	C5: "0.4",
-	A6: "Rice crackers",
-	B6: "5",
-	C6: "2.2",
-	A7: "Mystery bag",
-	B7: "1",
-	C7: "=ROUND(RAND()*9+1, 2)",
-	A8: "Fancy cheese",
-	B8: "0",
-	C8: "6.5",
-	A10: "Total",
-	D10: "=SUM(D2:D8)",
-	A11: "Avg. price",
-	C11: "=AVERAGE(C2:C8)",
-};
-for (let r = 2; r <= 8; r++) START[`D${r}`] = `=B${r}*C${r}`;
-
-const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const grid = document.querySelector<HTMLElement>(".grid");
-const scroller = document.querySelector<HTMLElement>(".scroller");
-const cursor = document.querySelector<HTMLElement>(".cursor");
-const handle = document.querySelector<HTMLElement>(".handle");
-const preview = document.querySelector<HTMLElement>(".fill-preview");
-const editor = document.querySelector<HTMLInputElement>(".editor");
-const refBox = document.querySelector<HTMLElement>(".ref-box");
-const rawBox = document.querySelector<HTMLElement>(".raw");
-const toast = document.querySelector<HTMLElement>(".toast");
-const status = document.querySelector<HTMLElement>(".status");
-
-const sheet = new Map<string, Entry>();
-const values = new Map<string, Val>();
-const critters = new Map<string, Critter>();
-let nextId = 1;
-let sel = { c: 3, r: 10 };
-let pointer: { x: number; y: number } | null = null;
-let fans = new Set<string>();
-
-const letter = (c: number) => String.fromCharCode(65 + c);
-const refOf = (c: number, r: number) => `${letter(c)}${r}`;
-function parseRef(ref: string) {
-	const m = /^\$?([A-Z])\$?(\d+)$/.exec(ref);
-	if (!m) return null;
-	const c = (m[1] ?? "A").charCodeAt(0) - 65;
-	const r = Number(m[2]);
-	return c >= 0 && c < COLS && r >= 1 && r <= ROWS ? { c, r } : null;
-}
-function expand(range: string) {
-	const [from, to] = range.split(":");
-	const a = parseRef(from ?? "");
-	const b = parseRef(to ?? from ?? "");
-	if (!a || !b) throw new Err("#REF!");
-	const refs: string[] = [];
-	for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) {
-		for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c++) refs.push(refOf(c, r));
+	interface Critter {
+		el: HTMLElement;
+		val: HTMLElement;
+		id: number;
+		shown: string;
 	}
-	return refs;
-}
-const cellEl = (ref: string) => document.getElementById(`c-${ref}`);
 
-function compute(ref: string, seen: Set<string>): Val {
-	const cached = values.get(ref);
-	if (cached !== undefined) return cached;
-	const raw = sheet.get(ref)?.raw ?? "";
-	let v: Val;
-	if (!raw.startsWith("=")) {
-		const t = raw.trim();
-		v = t !== "" && Number.isFinite(Number(t)) ? Number(t) : raw;
-	} else if (seen.has(ref)) {
-		return new Err("#CIRC!");
-	} else {
-		seen.add(ref);
-		try {
-			v = run(raw.slice(1), seen);
-		} catch (e) {
-			v = e instanceof Err ? e : new Err("#ERROR!");
+	class Err {
+		code: string;
+		constructor(code: string) {
+			this.code = code;
 		}
-		seen.delete(ref);
 	}
-	values.set(ref, v);
-	return v;
-}
+	type Val = number | string | Err;
 
-function run(src: string, seen: Set<string>): number {
-	const pattern = /\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|[A-Z]+|\d+(?:\.\d+)?|[-+*/(),]/g;
-	const tokens = src.toUpperCase().match(pattern) ?? [];
-	if (tokens.join("") !== src.toUpperCase().replace(/\s+/g, "")) throw new Err("#ERROR!");
-	let i = 0;
-	const peek = () => tokens[i];
-	const next = () => tokens[i++];
-	const expect = (t: string) => {
-		if (next() !== t) throw new Err("#ERROR!");
+	const COLS = 20;
+	const ROWS = 50;
+	const ROW_H = 36;
+	const RAND_EVERY = 1800;
+	const BLINK_EVERY = 6000;
+	const BLINK_TICK = 250;
+	const MOOD_WORDS: Record<Mood, string> = {
+		happy: "content",
+		proud: "very proud",
+		shy: "a little shy",
+		worried: "worried",
+		sleepy: "asleep",
+		giddy: "giddy",
+		clever: "pleased with itself",
+		dizzy: "dizzy",
 	};
-	const num = (ref: string) => {
-		if (!parseRef(ref)) throw new Err("#REF!");
-		const v = compute(ref.replace(/\$/g, ""), seen);
-		if (v instanceof Err) throw v;
-		if (v === "") return 0;
-		if (typeof v === "string") throw new Err("#VALUE!");
-		return v;
+	const START: Record<string, string> = {
+		A1: "Snack",
+		B1: "Qty",
+		C1: "Price",
+		D1: "Cost",
+		A2: "Pretzels",
+		B2: "4",
+		C2: "3.25",
+		A3: "Seaweed",
+		B3: "12",
+		C3: "1.1",
+		A4: "Gummy bears",
+		B4: "3",
+		C4: "2.75",
+		A5: "Clementines",
+		B5: "20",
+		C5: "0.4",
+		A6: "Rice crackers",
+		B6: "5",
+		C6: "2.2",
+		A7: "Mystery bag",
+		B7: "1",
+		C7: "=ROUND(RAND()*9+1, 2)",
+		A8: "Fancy cheese",
+		B8: "0",
+		C8: "6.5",
+		A10: "Total",
+		D10: "=SUM(D2:D8)",
+		A11: "Avg. price",
+		C11: "=AVERAGE(C2:C8)",
 	};
-	const rangeValues = (range: string) => {
-		const out: number[] = [];
-		for (const ref of expand(range.replace(/\$/g, ""))) {
-			const v = compute(ref, seen);
-			if (v instanceof Err) throw v;
-			if (typeof v === "number") out.push(v);
+	for (let r = 2; r <= 8; r++) START[`D${r}`] = `=B${r}*C${r}`;
+
+	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+	const grid = document.querySelector<HTMLElement>(".grid");
+	const scroller = document.querySelector<HTMLElement>(".scroller");
+	const cursor = document.querySelector<HTMLElement>(".cursor");
+	const handle = document.querySelector<HTMLElement>(".handle");
+	const preview = document.querySelector<HTMLElement>(".fill-preview");
+	const editor = document.querySelector<HTMLInputElement>(".editor");
+	const refBox = document.querySelector<HTMLElement>(".ref-box");
+	const rawBox = document.querySelector<HTMLElement>(".raw");
+	const toast = document.querySelector<HTMLElement>(".toast");
+	const status = document.querySelector<HTMLElement>(".status");
+
+	const sheet = new Map<string, Entry>();
+	const values = new Map<string, Val>();
+	const critters = new Map<string, Critter>();
+	let nextId = 1;
+	let sel = { c: 3, r: 10 };
+	let pointer: { x: number; y: number } | null = null;
+	let fans = new Set<string>();
+
+	const letter = (c: number) => String.fromCharCode(65 + c);
+	const refOf = (c: number, r: number) => `${letter(c)}${r}`;
+	function parseRef(ref: string) {
+		const m = /^\$?([A-Z])\$?(\d+)$/.exec(ref);
+		if (!m) return null;
+		const c = (m[1] ?? "A").charCodeAt(0) - 65;
+		const r = Number(m[2]);
+		return c >= 0 && c < COLS && r >= 1 && r <= ROWS ? { c, r } : null;
+	}
+	function expand(range: string) {
+		const [from, to] = range.split(":");
+		const a = parseRef(from ?? "");
+		const b = parseRef(to ?? from ?? "");
+		if (!a || !b) throw new Err("#REF!");
+		const refs: string[] = [];
+		for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) {
+			for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c++) refs.push(refOf(c, r));
 		}
-		return out;
-	};
-	const call = (name: string, args: number[]) => {
-		const sum = args.reduce((a, b) => a + b, 0);
-		switch (name) {
-			case "SUM":
-				return sum;
-			case "AVERAGE":
-				if (!args.length) throw new Err("#DIV/0!");
-				return sum / args.length;
-			case "MIN":
-				return args.length ? Math.min(...args) : 0;
-			case "MAX":
-				return args.length ? Math.max(...args) : 0;
-			case "COUNT":
-				return args.length;
-			case "ROUND": {
-				const places = 10 ** (args[1] ?? 0);
-				return Math.round((args[0] ?? 0) * places) / places;
+		return refs;
+	}
+	const cellEl = (ref: string) => document.getElementById(`c-${ref}`);
+
+	function compute(ref: string, seen: Set<string>): Val {
+		const cached = values.get(ref);
+		if (cached !== undefined) return cached;
+		const raw = sheet.get(ref)?.raw ?? "";
+		let v: Val;
+		if (!raw.startsWith("=")) {
+			const t = raw.trim();
+			v = t !== "" && Number.isFinite(Number(t)) ? Number(t) : raw;
+		} else if (seen.has(ref)) {
+			return new Err("#CIRC!");
+		} else {
+			seen.add(ref);
+			try {
+				v = run(raw.slice(1), seen);
+			} catch (e) {
+				v = e instanceof Err ? e : new Err("#ERROR!");
 			}
-			case "RAND":
-				return Math.random();
-			default:
-				throw new Err("#NAME?");
+			seen.delete(ref);
 		}
-	};
-	function factor(): number {
-		const t = next();
-		if (t === undefined) throw new Err("#ERROR!");
-		if (t === "-") return -factor();
-		if (t === "(") {
-			const v = expr();
-			expect(")");
+		values.set(ref, v);
+		return v;
+	}
+
+	function run(src: string, seen: Set<string>): number {
+		const pattern = /\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|[A-Z]+|\d+(?:\.\d+)?|[-+*/(),]/g;
+		const tokens = src.toUpperCase().match(pattern) ?? [];
+		if (tokens.join("") !== src.toUpperCase().replace(/\s+/g, "")) throw new Err("#ERROR!");
+		let i = 0;
+		const peek = () => tokens[i];
+		const next = () => tokens[i++];
+		const expect = (t: string) => {
+			if (next() !== t) throw new Err("#ERROR!");
+		};
+		const num = (ref: string) => {
+			if (!parseRef(ref)) throw new Err("#REF!");
+			const v = compute(ref.replace(/\$/g, ""), seen);
+			if (v instanceof Err) throw v;
+			if (v === "") return 0;
+			if (typeof v === "string") throw new Err("#VALUE!");
+			return v;
+		};
+		const rangeValues = (range: string) => {
+			const out: number[] = [];
+			for (const ref of expand(range.replace(/\$/g, ""))) {
+				const v = compute(ref, seen);
+				if (v instanceof Err) throw v;
+				if (typeof v === "number") out.push(v);
+			}
+			return out;
+		};
+		const call = (name: string, args: number[]) => {
+			const sum = args.reduce((a, b) => a + b, 0);
+			switch (name) {
+				case "SUM":
+					return sum;
+				case "AVERAGE":
+					if (!args.length) throw new Err("#DIV/0!");
+					return sum / args.length;
+				case "MIN":
+					return args.length ? Math.min(...args) : 0;
+				case "MAX":
+					return args.length ? Math.max(...args) : 0;
+				case "COUNT":
+					return args.length;
+				case "ROUND": {
+					const places = 10 ** (args[1] ?? 0);
+					return Math.round((args[0] ?? 0) * places) / places;
+				}
+				case "RAND":
+					return Math.random();
+				default:
+					throw new Err("#NAME?");
+			}
+		};
+		function factor(): number {
+			const t = next();
+			if (t === undefined) throw new Err("#ERROR!");
+			if (t === "-") return -factor();
+			if (t === "(") {
+				const v = expr();
+				expect(")");
+				return v;
+			}
+			if (/^\d/.test(t)) return Number(t);
+			if (/^[A-Z]+$/.test(t)) {
+				expect("(");
+				const args: number[] = [];
+				while (peek() !== ")") {
+					const arg = peek() ?? "";
+					if (arg.includes(":")) {
+						next();
+						args.push(...rangeValues(arg));
+					} else {
+						args.push(expr());
+					}
+					if (peek() === ",") next();
+					else break;
+				}
+				expect(")");
+				return call(t, args);
+			}
+			if (t.includes(":")) throw new Err("#VALUE!");
+			return num(t);
+		}
+		function term(): number {
+			let v = factor();
+			while (peek() === "*" || peek() === "/") {
+				const op = next();
+				const r = factor();
+				if (op === "/" && r === 0) throw new Err("#DIV/0!");
+				v = op === "*" ? v * r : v / r;
+			}
 			return v;
 		}
-		if (/^\d/.test(t)) return Number(t);
-		if (/^[A-Z]+$/.test(t)) {
-			expect("(");
-			const args: number[] = [];
-			while (peek() !== ")") {
-				const arg = peek() ?? "";
-				if (arg.includes(":")) {
-					next();
-					args.push(...rangeValues(arg));
-				} else {
-					args.push(expr());
-				}
-				if (peek() === ",") next();
-				else break;
+		function expr(): number {
+			let v = term();
+			while (peek() === "+" || peek() === "-") {
+				const op = next();
+				const r = term();
+				v = op === "+" ? v + r : v - r;
 			}
-			expect(")");
-			return call(t, args);
+			return v;
 		}
-		if (t.includes(":")) throw new Err("#VALUE!");
-		return num(t);
-	}
-	function term(): number {
-		let v = factor();
-		while (peek() === "*" || peek() === "/") {
-			const op = next();
-			const r = factor();
-			if (op === "/" && r === 0) throw new Err("#DIV/0!");
-			v = op === "*" ? v * r : v / r;
-		}
+		const v = expr();
+		if (i < tokens.length) throw new Err("#ERROR!");
 		return v;
 	}
-	function expr(): number {
-		let v = term();
-		while (peek() === "+" || peek() === "-") {
-			const op = next();
-			const r = term();
-			v = op === "+" ? v + r : v - r;
-		}
-		return v;
+
+	function shiftRefs(raw: string, dr: number, dc: number) {
+		if (!raw.startsWith("=")) return raw;
+		return raw.replace(
+			/(\$?)([A-Z])(\$?)(\d+)/g,
+			(_, cAbs: string, col: string, rAbs: string, row: string) => {
+				const c = col.charCodeAt(0) - 65 + (cAbs ? 0 : dc);
+				const r = Number(row) + (rAbs ? 0 : dr);
+				if (c < 0 || c >= COLS || r < 1 || r > ROWS) return "#REF!";
+				return `${cAbs}${letter(c)}${rAbs}${r}`;
+			},
+		);
 	}
-	const v = expr();
-	if (i < tokens.length) throw new Err("#ERROR!");
-	return v;
-}
 
-function shiftRefs(raw: string, dr: number, dc: number) {
-	if (!raw.startsWith("=")) return raw;
-	return raw.replace(
-		/(\$?)([A-Z])(\$?)(\d+)/g,
-		(_, cAbs: string, col: string, rAbs: string, row: string) => {
-			const c = col.charCodeAt(0) - 65 + (cAbs ? 0 : dc);
-			const r = Number(row) + (rAbs ? 0 : dr);
-			if (c < 0 || c >= COLS || r < 1 || r > ROWS) return "#REF!";
-			return `${cAbs}${letter(c)}${rAbs}${r}`;
-		},
-	);
-}
+	const show = (v: Val) =>
+		v instanceof Err
+			? v.code
+			: typeof v === "number"
+				? Number.isInteger(v)
+					? String(v)
+					: v.toFixed(2)
+				: v;
 
-const show = (v: Val) =>
-	v instanceof Err
-		? v.code
-		: typeof v === "number"
-			? Number.isInteger(v)
-				? String(v)
-				: v.toFixed(2)
-			: v;
-
-function recompute() {
-	values.clear();
-	for (const ref of sheet.keys()) compute(ref, new Set());
-	const stats = new Map<number, number[]>();
-	for (const [ref, v] of values) {
-		const pos = parseRef(ref);
-		if (!pos || typeof v !== "number") continue;
-		stats.set(pos.c, [...(stats.get(pos.c) ?? []), v]);
-	}
-	return stats;
-}
-
-function moodOf(ref: string, v: Val, stats: Map<number, number[]>): Mood {
-	const raw = sheet.get(ref)?.raw ?? "";
-	if (v instanceof Err) return "dizzy";
-	if (/RAND\(/i.test(raw)) return "giddy";
-	if (typeof v === "string") return "happy";
-	if (v < 0) return "worried";
-	if (v === 0) return "sleepy";
-	const column = stats.get(parseRef(ref)?.c ?? -1) ?? [];
-	if (column.length >= 3 && v === Math.max(...column)) return "proud";
-	if (column.length >= 3 && v === Math.min(...column)) return "shy";
-	if (raw.startsWith("=")) return "clever";
-	return "happy";
-}
-
-function makeCritter(ref: string, id: number): Critter | null {
-	const cell = cellEl(ref);
-	if (!cell) return null;
-	const el = document.createElement("span");
-	el.className = "critter";
-	const val = document.createElement("span");
-	val.className = "val";
-	const face = document.createElement("span");
-	face.className = "face";
-	face.setAttribute("aria-hidden", "true");
-	face.innerHTML = '<i class="eye"></i><i class="eye"></i><i class="mouth"></i>';
-	el.append(face, val);
-	cell.append(el);
-	return { el, val, id, shown: "" };
-}
-
-function setStyle(el: HTMLElement, name: string, value: string) {
-	if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
-}
-
-function play(el: HTMLElement, name: string, delay = 0) {
-	if (reduce) return;
-	window.setTimeout(() => {
-		if (el.classList.contains(name)) {
-			el.classList.remove(name);
-			void el.offsetWidth;
-		}
-		el.classList.add(name);
-		const done = (e: AnimationEvent) => {
-			if (e.target !== el) return;
-			el.classList.remove(name);
-			el.removeEventListener("animationend", done);
-		};
-		el.addEventListener("animationend", done);
-	}, delay);
-}
-
-/** Redraws every cell. `origin` is where a change started, so value changes ripple out from it. */
-function render(origin?: string, quiet = false) {
-	const stats = recompute();
-	const from = origin ? parseRef(origin) : null;
-	for (const [ref, entry] of sheet) {
-		let critter = critters.get(ref);
-		const fresh = !critter || critter.id !== entry.id;
-		if (critter && critter.id !== entry.id) {
-			critter.el.remove();
-			critter = undefined;
-		}
-		if (!critter) {
-			const made = makeCritter(ref, entry.id);
-			if (!made) continue;
-			critter = made;
-			critters.set(ref, critter);
-		}
-		const v = values.get(ref) ?? "";
-		const text = show(v);
-		const changed = critter.shown !== "" && critter.shown !== text;
-		if (critter.val.textContent !== text) critter.val.textContent = text;
-		critter.el.classList.toggle("num", typeof v === "number" || v instanceof Err);
-		const mood = moodOf(ref, v, stats);
-		if (critter.el.dataset.mood !== mood) critter.el.dataset.mood = mood;
-		if (changed && !fresh && !quiet) {
+	function recompute() {
+		values.clear();
+		for (const ref of sheet.keys()) compute(ref, new Set());
+		const stats = new Map<number, number[]>();
+		for (const [ref, v] of values) {
 			const pos = parseRef(ref);
-			const dist = from && pos ? Math.abs(pos.c - from.c) + Math.abs(pos.r - from.r) : 0;
-			play(critter.el, "oh", Math.min(600, dist * 45));
+			if (!pos || typeof v !== "number") continue;
+			stats.set(pos.c, [...(stats.get(pos.c) ?? []), v]);
 		}
-		critter.shown = text;
+		return stats;
 	}
-	for (const [ref, critter] of critters) {
-		if (sheet.has(ref)) continue;
-		critters.delete(ref);
-		if (reduce) {
-			critter.el.remove();
-		} else {
-			critter.el.dataset.mood = "sleepy";
-			critter.el.classList.add("leaving");
-			critter.el.addEventListener("animationend", () => critter.el.remove(), { once: true });
-		}
-	}
-	select(sel.c, sel.r, false);
-}
 
-function setRaw(ref: string, raw: string) {
-	const clean = raw.startsWith("=") ? raw.toUpperCase() : raw;
-	if (!clean.trim()) {
+	function moodOf(ref: string, v: Val, stats: Map<number, number[]>): Mood {
+		const raw = sheet.get(ref)?.raw ?? "";
+		if (v instanceof Err) return "dizzy";
+		if (/RAND\(/i.test(raw)) return "giddy";
+		if (typeof v === "string") return "happy";
+		if (v < 0) return "worried";
+		if (v === 0) return "sleepy";
+		const column = stats.get(parseRef(ref)?.c ?? -1) ?? [];
+		if (column.length >= 3 && v === Math.max(...column)) return "proud";
+		if (column.length >= 3 && v === Math.min(...column)) return "shy";
+		if (raw.startsWith("=")) return "clever";
+		return "happy";
+	}
+
+	function makeCritter(ref: string, id: number): Critter | null {
+		const cell = cellEl(ref);
+		if (!cell) return null;
+		const el = document.createElement("span");
+		el.className = "critter";
+		const val = document.createElement("span");
+		val.className = "val";
+		const face = document.createElement("span");
+		face.className = "face";
+		face.setAttribute("aria-hidden", "true");
+		face.innerHTML = '<i class="eye"></i><i class="eye"></i><i class="mouth"></i>';
+		el.append(face, val);
+		cell.append(el);
+		return { el, val, id, shown: "" };
+	}
+
+	function setStyle(el: HTMLElement, name: string, value: string) {
+		if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
+	}
+
+	function play(el: HTMLElement, name: string, delay = 0) {
+		if (reduce) return;
+		window.setTimeout(() => {
+			if (el.classList.contains(name)) {
+				el.classList.remove(name);
+				void el.offsetWidth;
+			}
+			el.classList.add(name);
+			const done = (e: AnimationEvent) => {
+				if (e.target !== el) return;
+				el.classList.remove(name);
+				el.removeEventListener("animationend", done);
+			};
+			el.addEventListener("animationend", done);
+		}, delay);
+	}
+
+	/** Redraws every cell. `origin` is where a change started, so value changes ripple out from it. */
+	function render(origin?: string, quiet = false) {
+		const stats = recompute();
+		const from = origin ? parseRef(origin) : null;
+		for (const [ref, entry] of sheet) {
+			let critter = critters.get(ref);
+			const fresh = !critter || critter.id !== entry.id;
+			if (critter && critter.id !== entry.id) {
+				critter.el.remove();
+				critter = undefined;
+			}
+			if (!critter) {
+				const made = makeCritter(ref, entry.id);
+				if (!made) continue;
+				critter = made;
+				critters.set(ref, critter);
+			}
+			const v = values.get(ref) ?? "";
+			const text = show(v);
+			const changed = critter.shown !== "" && critter.shown !== text;
+			if (critter.val.textContent !== text) critter.val.textContent = text;
+			critter.el.classList.toggle("num", typeof v === "number" || v instanceof Err);
+			const mood = moodOf(ref, v, stats);
+			if (critter.el.dataset.mood !== mood) critter.el.dataset.mood = mood;
+			if (changed && !fresh && !quiet) {
+				const pos = parseRef(ref);
+				const dist = from && pos ? Math.abs(pos.c - from.c) + Math.abs(pos.r - from.r) : 0;
+				play(critter.el, "oh", Math.min(600, dist * 45));
+			}
+			critter.shown = text;
+		}
+		for (const [ref, critter] of critters) {
+			if (sheet.has(ref)) continue;
+			critters.delete(ref);
+			if (reduce) {
+				critter.el.remove();
+			} else {
+				critter.el.dataset.mood = "sleepy";
+				critter.el.classList.add("leaving");
+				critter.el.addEventListener("animationend", () => critter.el.remove(), { once: true });
+			}
+		}
+		select(sel.c, sel.r, false);
+	}
+
+	function setRaw(ref: string, raw: string) {
+		const clean = raw.startsWith("=") ? raw.toUpperCase() : raw;
+		if (!clean.trim()) {
+			sheet.delete(ref);
+			return;
+		}
+		const existing = sheet.get(ref);
+		sheet.set(ref, { raw: clean, id: existing?.id ?? nextId++ });
+	}
+
+	function precedents(raw: string) {
+		const out = new Set<string>();
+		if (!raw.startsWith("=")) return out;
+		for (const m of raw.matchAll(/\$?[A-Z]\$?\d+(?::\$?[A-Z]\$?\d+)?/g)) {
+			try {
+				for (const ref of expand(m[0].replace(/\$/g, ""))) out.add(ref);
+			} catch {
+				// A broken reference has nobody to look at.
+			}
+		}
+		return out;
+	}
+
+	function say(text: string) {
+		if (status) status.textContent = text;
+	}
+
+	function select(c: number, r: number, announce = true) {
+		sel = { c: Math.max(0, Math.min(COLS - 1, c)), r: Math.max(1, Math.min(ROWS, r)) };
+		const ref = refOf(sel.c, sel.r);
+		const cell = cellEl(ref);
+		if (!cell || !cursor || !grid) return;
+		setStyle(cursor, "translate", `${cell.offsetLeft - 1}px ${cell.offsetTop - 1}px`);
+		setStyle(cursor, "inline-size", `${cell.offsetWidth + 1}px`);
+		setStyle(cursor, "block-size", `${cell.offsetHeight + 1}px`);
+		grid.setAttribute("aria-activedescendant", cell.id);
+		const raw = sheet.get(ref)?.raw ?? "";
+		if (refBox) refBox.textContent = ref;
+		if (rawBox) rawBox.textContent = raw;
+
+		for (const fan of fans) cellEl(fan)?.classList.remove("fan");
+		fans = precedents(raw);
+		for (const fan of fans) cellEl(fan)?.classList.add("fan");
+
+		for (const [other, critter] of critters) {
+			const pos = parseRef(other);
+			if (!pos) continue;
+			const dx = sel.c - pos.c;
+			const dy = sel.r - pos.r;
+			const near = Math.max(Math.abs(dx), Math.abs(dy)) === 1;
+			critter.el.classList.toggle("lean", near && !reduce);
+			setStyle(critter.el, "--dx", String(Math.sign(dx)));
+			setStyle(critter.el, "--dy", String(Math.sign(dy)));
+		}
+		lookAround();
+
+		if (announce) {
+			const v = values.get(ref);
+			const mood = critters.get(ref)?.el.dataset.mood as Mood | undefined;
+			if (ref === "R44") say("R44. Something is curled up in here.");
+			else if (v === undefined || !mood) say(`${ref}, empty.`);
+			else say(`${ref}, ${show(v)}, ${MOOD_WORDS[mood]}.`);
+			cell.scrollIntoView({ block: "nearest", inline: "nearest" });
+		}
+	}
+
+	let lookQueued = false;
+	function lookAround() {
+		if (lookQueued) return;
+		lookQueued = true;
+		requestAnimationFrame(() => {
+			lookQueued = false;
+			const selected = cellEl(refOf(sel.c, sel.r))?.getBoundingClientRect();
+			const selPoint = selected
+				? { x: selected.left + selected.width / 2, y: selected.top + selected.height / 2 }
+				: null;
+			// Every read before any write; see docs/days/05-sheet.md (scroll performance).
+			const faces = [...critters].map(([ref, critter]) => ({
+				ref,
+				critter,
+				face: critter.el.firstElementChild?.getBoundingClientRect(),
+			}));
+			for (const { ref, critter, face } of faces) {
+				const target = fans.has(ref) ? selPoint : (pointer ?? selPoint);
+				if (!target || !face) continue;
+				const dx = target.x - (face.left + face.width / 2);
+				const dy = target.y - (face.top + face.height / 2);
+				const len = Math.hypot(dx, dy) || 1;
+				setStyle(critter.el, "--lx", `${((dx / len) * 1.4).toFixed(2)}px`);
+				setStyle(critter.el, "--ly", `${((dy / len) * 1.2).toFixed(2)}px`);
+			}
+		});
+	}
+
+	function startEdit(initial?: string) {
+		const ref = refOf(sel.c, sel.r);
+		const cell = cellEl(ref);
+		if (!editor || !cell) return;
+		editor.hidden = false;
+		editor.style.translate = `${cell.offsetLeft}px ${cell.offsetTop}px`;
+		editor.style.inlineSize = `${cell.offsetWidth}px`;
+		editor.style.blockSize = `${cell.offsetHeight}px`;
+		editor.value = initial ?? sheet.get(ref)?.raw ?? "";
+		editor.dataset.ref = ref;
+		editor.focus();
+	}
+
+	function stopEdit(commit: boolean) {
+		if (!editor || editor.hidden) return;
+		const ref = editor.dataset.ref ?? "";
+		editor.hidden = true;
+		if (commit && ref) {
+			const was = sheet.has(ref);
+			setRaw(ref, editor.value);
+			render(ref);
+			const critter = critters.get(ref);
+			if (critter && !was) play(critter.el, "hatch");
+		}
+		grid?.focus();
+	}
+
+	function clearCell() {
+		const ref = refOf(sel.c, sel.r);
+		if (!sheet.has(ref)) return;
 		sheet.delete(ref);
-		return;
+		render(ref);
+		say(`${ref} tucked in for the night.`);
 	}
-	const existing = sheet.get(ref);
-	sheet.set(ref, { raw: clean, id: existing?.id ?? nextId++ });
-}
 
-function precedents(raw: string) {
-	const out = new Set<string>();
-	if (!raw.startsWith("=")) return out;
-	for (const m of raw.matchAll(/\$?[A-Z]\$?\d+(?::\$?[A-Z]\$?\d+)?/g)) {
-		try {
-			for (const ref of expand(m[0].replace(/\$/g, ""))) out.add(ref);
-		} catch {
-			// A broken reference has nobody to look at.
+	function tableBounds() {
+		let width = 0;
+		while (width < COLS && sheet.has(refOf(width, 1))) width++;
+		let last = 1;
+		while (last < ROWS) {
+			const row = last + 1;
+			let filled = false;
+			for (let c = 0; c < width; c++) if (sheet.has(refOf(c, row))) filled = true;
+			if (!filled) break;
+			last = row;
 		}
+		return { width, last };
 	}
-	return out;
-}
 
-function say(text: string) {
-	if (status) status.textContent = text;
-}
-
-function select(c: number, r: number, announce = true) {
-	sel = { c: Math.max(0, Math.min(COLS - 1, c)), r: Math.max(1, Math.min(ROWS, r)) };
-	const ref = refOf(sel.c, sel.r);
-	const cell = cellEl(ref);
-	if (!cell || !cursor || !grid) return;
-	setStyle(cursor, "translate", `${cell.offsetLeft - 1}px ${cell.offsetTop - 1}px`);
-	setStyle(cursor, "inline-size", `${cell.offsetWidth + 1}px`);
-	setStyle(cursor, "block-size", `${cell.offsetHeight + 1}px`);
-	grid.setAttribute("aria-activedescendant", cell.id);
-	const raw = sheet.get(ref)?.raw ?? "";
-	if (refBox) refBox.textContent = ref;
-	if (rawBox) rawBox.textContent = raw;
-
-	for (const fan of fans) cellEl(fan)?.classList.remove("fan");
-	fans = precedents(raw);
-	for (const fan of fans) cellEl(fan)?.classList.add("fan");
-
-	for (const [other, critter] of critters) {
-		const pos = parseRef(other);
-		if (!pos) continue;
-		const dx = sel.c - pos.c;
-		const dy = sel.r - pos.r;
-		const near = Math.max(Math.abs(dx), Math.abs(dy)) === 1;
-		critter.el.classList.toggle("lean", near && !reduce);
-		setStyle(critter.el, "--dx", String(Math.sign(dx)));
-		setStyle(critter.el, "--dy", String(Math.sign(dy)));
+	let toastTimer = 0;
+	function flash(text: string) {
+		if (!toast) return;
+		toast.textContent = text;
+		window.clearTimeout(toastTimer);
+		toastTimer = window.setTimeout(() => {
+			toast.textContent = "";
+		}, 3200);
 	}
-	lookAround();
 
-	if (announce) {
-		const v = values.get(ref);
-		const mood = critters.get(ref)?.el.dataset.mood as Mood | undefined;
-		if (ref === "R44") say("R44. Something is curled up in here.");
-		else if (v === undefined || !mood) say(`${ref}, empty.`);
-		else say(`${ref}, ${show(v)}, ${MOOD_WORDS[mood]}.`);
-		cell.scrollIntoView({ block: "nearest", inline: "nearest" });
-	}
-}
-
-let lookQueued = false;
-function lookAround() {
-	if (lookQueued) return;
-	lookQueued = true;
-	requestAnimationFrame(() => {
-		lookQueued = false;
-		const selected = cellEl(refOf(sel.c, sel.r))?.getBoundingClientRect();
-		const selPoint = selected
-			? { x: selected.left + selected.width / 2, y: selected.top + selected.height / 2 }
-			: null;
-		// Every read before any write; see docs/days/05-sheet.md (scroll performance).
-		const faces = [...critters].map(([ref, critter]) => ({
-			ref,
-			critter,
-			face: critter.el.firstElementChild?.getBoundingClientRect(),
-		}));
-		for (const { ref, critter, face } of faces) {
-			const target = fans.has(ref) ? selPoint : (pointer ?? selPoint);
-			if (!target || !face) continue;
-			const dx = target.x - (face.left + face.width / 2);
-			const dy = target.y - (face.top + face.height / 2);
-			const len = Math.hypot(dx, dy) || 1;
-			setStyle(critter.el, "--lx", `${((dx / len) * 1.4).toFixed(2)}px`);
-			setStyle(critter.el, "--ly", `${((dy / len) * 1.2).toFixed(2)}px`);
+	function sortBy(col: number, dir: 1 | -1) {
+		const { width, last } = tableBounds();
+		if (col >= width || last < 3) {
+			flash("Pick a column inside the table first.");
+			return;
 		}
-	});
-}
+		const rows: { r: number; entries: (Entry | undefined)[]; key: Val | undefined }[] = [];
+		for (let r = 2; r <= last; r++) {
+			const entries: (Entry | undefined)[] = [];
+			for (let c = 0; c < width; c++) entries.push(sheet.get(refOf(c, r)));
+			rows.push({ r, entries, key: values.get(refOf(col, r)) });
+		}
+		const rank = (v: Val | undefined) =>
+			typeof v === "number" ? 0 : typeof v === "string" && v !== "" ? 1 : 2;
+		const sorted = [...rows].sort((a, b) => {
+			const ra = rank(a.key);
+			const rb = rank(b.key);
+			if (ra !== rb) return ra - rb;
+			if (typeof a.key === "number" && typeof b.key === "number") return (a.key - b.key) * dir;
+			return String(a.key ?? "").localeCompare(String(b.key ?? "")) * dir;
+		});
+		const already = sorted.every((row, i) => row.r === i + 2);
 
-function startEdit(initial?: string) {
-	const ref = refOf(sel.c, sel.r);
-	const cell = cellEl(ref);
-	if (!editor || !cell) return;
-	editor.hidden = false;
-	editor.style.translate = `${cell.offsetLeft}px ${cell.offsetTop}px`;
-	editor.style.inlineSize = `${cell.offsetWidth}px`;
-	editor.style.blockSize = `${cell.offsetHeight}px`;
-	editor.value = initial ?? sheet.get(ref)?.raw ?? "";
-	editor.dataset.ref = ref;
-	editor.focus();
-}
+		const before = new Map<number, { x: number; y: number }>();
+		for (const [ref, critter] of critters) {
+			const cell = cellEl(ref);
+			if (cell) before.set(critter.id, { x: cell.offsetLeft, y: cell.offsetTop });
+		}
+		sorted.forEach((row, i) => {
+			const to = i + 2;
+			row.entries.forEach((entry, c) => {
+				const ref = refOf(c, to);
+				if (entry) sheet.set(ref, { raw: shiftRefs(entry.raw, to - row.r, 0), id: entry.id });
+				else sheet.delete(ref);
+			});
+		});
+		// Cellmates keep their identity through a sort, so their nodes move with their entries.
+		const homes = new Map<number, string>();
+		for (const [ref, entry] of sheet) homes.set(entry.id, ref);
+		const moved = [...critters.values()];
+		critters.clear();
+		for (const critter of moved) {
+			const home = homes.get(critter.id);
+			if (!home) continue;
+			critters.set(home, critter);
+			cellEl(home)?.append(critter.el);
+		}
+		render(undefined, true);
 
-function stopEdit(commit: boolean) {
-	if (!editor || editor.hidden) return;
-	const ref = editor.dataset.ref ?? "";
-	editor.hidden = true;
-	if (commit && ref) {
+		if (!reduce) {
+			for (const [ref, critter] of critters) {
+				const was = before.get(critter.id);
+				const cell = cellEl(ref);
+				if (!was || !cell) continue;
+				const dx = was.x - cell.offsetLeft;
+				const dy = was.y - cell.offsetTop;
+				if (!dx && !dy) continue;
+				const lift = Math.min(26, 8 + Math.abs(dy) / 10);
+				critter.el.animate(
+					[
+						{ translate: `${dx}px ${dy}px` },
+						{ translate: `${dx / 2}px ${dy / 2 - lift}px`, offset: 0.5 },
+						{ translate: "0 0" },
+					],
+					{
+						duration: 560,
+						easing: "cubic-bezier(.35,.1,.3,1)",
+						delay: (ref.charCodeAt(0) - 65) * 30,
+					},
+				);
+			}
+			for (let r = 2; r <= last; r++) {
+				const critter = critters.get(refOf(col, r));
+				if (critter) play(critter.el, "cheer", (already ? 0 : 620) + (r - 2) * 70);
+			}
+		}
+		const name = show(values.get(refOf(col, 1)) ?? letter(col));
+		flash(
+			already
+				? "Already in order. They lined up anyway."
+				: `Sorted by ${name}, ${dir === 1 ? "smallest" : "biggest"} first.`,
+		);
+	}
+
+	function autosum() {
+		let top = sel.r - 1;
+		while (top >= 1 && typeof values.get(refOf(sel.c, top)) === "number") top--;
+		if (top === sel.r - 1) {
+			flash("Nothing above to add up.");
+			return;
+		}
+		const ref = refOf(sel.c, sel.r);
 		const was = sheet.has(ref);
-		setRaw(ref, editor.value);
+		setRaw(ref, `=SUM(${refOf(sel.c, top + 1)}:${refOf(sel.c, sel.r - 1)})`);
 		render(ref);
 		const critter = critters.get(ref);
 		if (critter && !was) play(critter.el, "hatch");
 	}
-	grid?.focus();
-}
 
-function clearCell() {
-	const ref = refOf(sel.c, sel.r);
-	if (!sheet.has(ref)) return;
-	sheet.delete(ref);
-	render(ref);
-	say(`${ref} tucked in for the night.`);
-}
-
-function tableBounds() {
-	let width = 0;
-	while (width < COLS && sheet.has(refOf(width, 1))) width++;
-	let last = 1;
-	while (last < ROWS) {
-		const row = last + 1;
-		let filled = false;
-		for (let c = 0; c < width; c++) if (sheet.has(refOf(c, row))) filled = true;
-		if (!filled) break;
-		last = row;
+	let fill: { col: number; from: number; to: number } | null = null;
+	function fillTo(row: number) {
+		if (!fill || !preview) return;
+		fill.to = Math.max(fill.from, Math.min(ROWS, row));
+		const top = cellEl(refOf(fill.col, fill.from + 1));
+		const bottom = cellEl(refOf(fill.col, fill.to));
+		preview.hidden = fill.to === fill.from || !top || !bottom;
+		if (top && bottom) {
+			preview.style.translate = `${top.offsetLeft - 1}px ${top.offsetTop - 1}px`;
+			preview.style.inlineSize = `${top.offsetWidth + 1}px`;
+			preview.style.blockSize = `${bottom.offsetTop + bottom.offsetHeight - top.offsetTop + 1}px`;
+		}
 	}
-	return { width, last };
-}
 
-let toastTimer = 0;
-function flash(text: string) {
-	if (!toast) return;
-	toast.textContent = text;
-	window.clearTimeout(toastTimer);
-	toastTimer = window.setTimeout(() => {
-		toast.textContent = "";
-	}, 3200);
-}
-
-function sortBy(col: number, dir: 1 | -1) {
-	const { width, last } = tableBounds();
-	if (col >= width || last < 3) {
-		flash("Pick a column inside the table first.");
-		return;
-	}
-	const rows: { r: number; entries: (Entry | undefined)[]; key: Val | undefined }[] = [];
-	for (let r = 2; r <= last; r++) {
-		const entries: (Entry | undefined)[] = [];
-		for (let c = 0; c < width; c++) entries.push(sheet.get(refOf(c, r)));
-		rows.push({ r, entries, key: values.get(refOf(col, r)) });
-	}
-	const rank = (v: Val | undefined) =>
-		typeof v === "number" ? 0 : typeof v === "string" && v !== "" ? 1 : 2;
-	const sorted = [...rows].sort((a, b) => {
-		const ra = rank(a.key);
-		const rb = rank(b.key);
-		if (ra !== rb) return ra - rb;
-		if (typeof a.key === "number" && typeof b.key === "number") return (a.key - b.key) * dir;
-		return String(a.key ?? "").localeCompare(String(b.key ?? "")) * dir;
-	});
-	const already = sorted.every((row, i) => row.r === i + 2);
-
-	const before = new Map<number, { x: number; y: number }>();
-	for (const [ref, critter] of critters) {
-		const cell = cellEl(ref);
-		if (cell) before.set(critter.id, { x: cell.offsetLeft, y: cell.offsetTop });
-	}
-	sorted.forEach((row, i) => {
-		const to = i + 2;
-		row.entries.forEach((entry, c) => {
-			const ref = refOf(c, to);
-			if (entry) sheet.set(ref, { raw: shiftRefs(entry.raw, to - row.r, 0), id: entry.id });
-			else sheet.delete(ref);
-		});
-	});
-	// Cellmates keep their identity through a sort, so their nodes move with their entries.
-	const homes = new Map<number, string>();
-	for (const [ref, entry] of sheet) homes.set(entry.id, ref);
-	const moved = [...critters.values()];
-	critters.clear();
-	for (const critter of moved) {
-		const home = homes.get(critter.id);
-		if (!home) continue;
-		critters.set(home, critter);
-		cellEl(home)?.append(critter.el);
-	}
-	render(undefined, true);
-
-	if (!reduce) {
-		for (const [ref, critter] of critters) {
-			const was = before.get(critter.id);
-			const cell = cellEl(ref);
-			if (!was || !cell) continue;
-			const dx = was.x - cell.offsetLeft;
-			const dy = was.y - cell.offsetTop;
-			if (!dx && !dy) continue;
-			const lift = Math.min(26, 8 + Math.abs(dy) / 10);
+	function finishFill() {
+		if (!fill || !preview) return;
+		const { col, from, to } = fill;
+		fill = null;
+		preview.hidden = true;
+		const source = sheet.get(refOf(col, from));
+		if (!source || to === from) return;
+		const n = Number(source.raw);
+		const isNumber = source.raw.trim() !== "" && Number.isFinite(n);
+		for (let k = 1; k <= to - from; k++) {
+			const raw = isNumber ? String(n + k) : shiftRefs(source.raw, k, 0);
+			sheet.set(refOf(col, from + k), { raw, id: nextId++ });
+		}
+		render(refOf(col, from));
+		for (let k = 1; k <= to - from; k++) {
+			const critter = critters.get(refOf(col, from + k));
+			if (!critter || reduce) continue;
 			critter.el.animate(
 				[
-					{ translate: `${dx}px ${dy}px` },
-					{ translate: `${dx / 2}px ${dy / 2 - lift}px`, offset: 0.5 },
-					{ translate: "0 0" },
+					{ translate: `0 ${-k * ROW_H}px`, scale: "0.6" },
+					{ translate: `0 ${-k * ROW_H * 0.5 - 10}px`, scale: "1", offset: 0.6 },
+					{ translate: "0 0", scale: "1" },
 				],
-				{
-					duration: 560,
-					easing: "cubic-bezier(.35,.1,.3,1)",
-					delay: (ref.charCodeAt(0) - 65) * 30,
-				},
+				{ duration: 420, easing: "ease-out", delay: k * 90, fill: "backwards" },
 			);
 		}
-		for (let r = 2; r <= last; r++) {
-			const critter = critters.get(refOf(col, r));
-			if (critter) play(critter.el, "cheer", (already ? 0 : 620) + (r - 2) * 70);
-		}
+		flash(to - from === 1 ? "A new cellmate!" : `${to - from} new cellmates, in a line.`);
 	}
-	const name = show(values.get(refOf(col, 1)) ?? letter(col));
-	flash(
-		already
-			? "Already in order. They lined up anyway."
-			: `Sorted by ${name}, ${dir === 1 ? "smallest" : "biggest"} first.`,
-	);
-}
 
-function autosum() {
-	let top = sel.r - 1;
-	while (top >= 1 && typeof values.get(refOf(sel.c, top)) === "number") top--;
-	if (top === sel.r - 1) {
-		flash("Nothing above to add up.");
-		return;
-	}
-	const ref = refOf(sel.c, sel.r);
-	const was = sheet.has(ref);
-	setRaw(ref, `=SUM(${refOf(sel.c, top + 1)}:${refOf(sel.c, sel.r - 1)})`);
-	render(ref);
-	const critter = critters.get(ref);
-	if (critter && !was) play(critter.el, "hatch");
-}
+	if (grid && scroller && editor && handle) {
+		for (const [ref, raw] of Object.entries(START)) setRaw(ref, raw);
+		render();
 
-let fill: { col: number; from: number; to: number } | null = null;
-function fillTo(row: number) {
-	if (!fill || !preview) return;
-	fill.to = Math.max(fill.from, Math.min(ROWS, row));
-	const top = cellEl(refOf(fill.col, fill.from + 1));
-	const bottom = cellEl(refOf(fill.col, fill.to));
-	preview.hidden = fill.to === fill.from || !top || !bottom;
-	if (top && bottom) {
-		preview.style.translate = `${top.offsetLeft - 1}px ${top.offsetTop - 1}px`;
-		preview.style.inlineSize = `${top.offsetWidth + 1}px`;
-		preview.style.blockSize = `${bottom.offsetTop + bottom.offsetHeight - top.offsetTop + 1}px`;
-	}
-}
-
-function finishFill() {
-	if (!fill || !preview) return;
-	const { col, from, to } = fill;
-	fill = null;
-	preview.hidden = true;
-	const source = sheet.get(refOf(col, from));
-	if (!source || to === from) return;
-	const n = Number(source.raw);
-	const isNumber = source.raw.trim() !== "" && Number.isFinite(n);
-	for (let k = 1; k <= to - from; k++) {
-		const raw = isNumber ? String(n + k) : shiftRefs(source.raw, k, 0);
-		sheet.set(refOf(col, from + k), { raw, id: nextId++ });
-	}
-	render(refOf(col, from));
-	for (let k = 1; k <= to - from; k++) {
-		const critter = critters.get(refOf(col, from + k));
-		if (!critter || reduce) continue;
-		critter.el.animate(
-			[
-				{ translate: `0 ${-k * ROW_H}px`, scale: "0.6" },
-				{ translate: `0 ${-k * ROW_H * 0.5 - 10}px`, scale: "1", offset: 0.6 },
-				{ translate: "0 0", scale: "1" },
-			],
-			{ duration: 420, easing: "ease-out", delay: k * 90, fill: "backwards" },
-		);
-	}
-	flash(to - from === 1 ? "A new cellmate!" : `${to - from} new cellmates, in a line.`);
-}
-
-if (grid && scroller && editor && handle) {
-	for (const [ref, raw] of Object.entries(START)) setRaw(ref, raw);
-	render();
-
-	grid.addEventListener("pointerdown", (e) => {
-		const target = e.target as HTMLElement;
-		if (target.closest(".handle, .editor, .wwo-cat")) return;
-		const cell = target.closest<HTMLElement>(".cell");
-		const pos = cell ? parseRef(cell.dataset.ref ?? "") : null;
-		if (!pos) return;
-		stopEdit(true);
-		select(pos.c, pos.r);
-	});
-	grid.addEventListener("dblclick", (e) => {
-		if ((e.target as HTMLElement).closest(".cell")) startEdit();
-	});
-
-	window.addEventListener("pointermove", (e) => {
-		if (fill) {
-			const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".cell");
+		grid.addEventListener("pointerdown", (e) => {
+			const target = e.target as HTMLElement;
+			if (target.closest(".handle, .editor, .wwo-cat")) return;
+			const cell = target.closest<HTMLElement>(".cell");
 			const pos = cell ? parseRef(cell.dataset.ref ?? "") : null;
-			if (pos) fillTo(pos.r);
-		}
-		if (e.pointerType === "touch") return;
-		pointer = { x: e.clientX, y: e.clientY };
-		lookAround();
-	});
-	document.documentElement.addEventListener("pointerleave", () => {
-		pointer = null;
-		lookAround();
-	});
-	scroller.addEventListener(
-		"scroll",
-		() => {
-			if (pointer) lookAround();
-		},
-		{ passive: true },
-	);
-
-	handle.addEventListener("pointerdown", (e) => {
-		e.preventDefault();
-		e.stopPropagation();
-		handle.setPointerCapture(e.pointerId);
-		fill = { col: sel.c, from: sel.r, to: sel.r };
-	});
-	handle.addEventListener("pointerup", finishFill);
-	handle.addEventListener("pointercancel", () => {
-		fill = null;
-		if (preview) preview.hidden = true;
-	});
-
-	grid.addEventListener("keydown", (e) => {
-		if (e.target === editor) return;
-		const moves: Record<string, [number, number]> = {
-			ArrowLeft: [-1, 0],
-			ArrowRight: [1, 0],
-			ArrowUp: [0, -1],
-			ArrowDown: [0, 1],
-		};
-		const move = moves[e.key];
-		if (move) {
-			e.preventDefault();
-			if (e.shiftKey && move[1] > 0 && sheet.has(refOf(sel.c, sel.r))) {
-				fill = { col: sel.c, from: sel.r, to: sel.r };
-				fillTo(sel.r + 1);
-				finishFill();
-				return;
-			}
-			select(sel.c + move[0], sel.r + move[1]);
-		} else if (e.key === "Enter" || e.key === "F2") {
-			e.preventDefault();
-			startEdit();
-		} else if (e.key === "Delete" || e.key === "Backspace") {
-			e.preventDefault();
-			clearCell();
-		} else if (e.key === "Tab") {
-			e.preventDefault();
-			select(sel.c + (e.shiftKey ? -1 : 1), sel.r);
-		} else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-			e.preventDefault();
-			startEdit(e.key);
-		}
-	});
-
-	editor.addEventListener("keydown", (e) => {
-		if (e.key === "Enter") {
-			e.preventDefault();
+			if (!pos) return;
 			stopEdit(true);
-			select(sel.c, sel.r + 1);
-		} else if (e.key === "Tab") {
-			e.preventDefault();
-			stopEdit(true);
-			select(sel.c + (e.shiftKey ? -1 : 1), sel.r);
-		} else if (e.key === "Escape") {
-			e.preventDefault();
-			stopEdit(false);
-		}
-	});
-	editor.addEventListener("blur", () => stopEdit(true));
-
-	for (const button of document.querySelectorAll<HTMLButtonElement>(".toolbar button")) {
-		button.addEventListener("click", () => {
-			const action = button.dataset.action;
-			if (action === "sort-asc") sortBy(sel.c, 1);
-			else if (action === "sort-desc") sortBy(sel.c, -1);
-			else if (action === "autosum") autosum();
+			select(pos.c, pos.r);
 		});
-	}
+		grid.addEventListener("dblclick", (e) => {
+			if ((e.target as HTMLElement).closest(".cell")) startEdit();
+		});
 
-	window.setInterval(() => {
-		const giddy = [...sheet].find(([, entry]) => /RAND\(/.test(entry.raw))?.[0];
-		if (!giddy) return;
-		render(giddy);
-		const critter = critters.get(giddy);
-		if (critter) play(critter.el, "jiggle");
-	}, RAND_EVERY);
+		window.addEventListener("pointermove", (e) => {
+			if (fill) {
+				const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".cell");
+				const pos = cell ? parseRef(cell.dataset.ref ?? "") : null;
+				if (pos) fillTo(pos.r);
+			}
+			if (e.pointerType === "touch") return;
+			pointer = { x: e.clientX, y: e.clientY };
+			lookAround();
+		});
+		document.documentElement.addEventListener("pointerleave", () => {
+			pointer = null;
+			lookAround();
+		});
+		scroller.addEventListener(
+			"scroll",
+			() => {
+				if (pointer) lookAround();
+			},
+			{ passive: true },
+		);
 
-	window.setInterval(() => {
-		if (reduce) return;
-		for (const critter of critters.values()) {
-			if (Math.random() >= BLINK_TICK / BLINK_EVERY) continue;
-			critter.el.classList.add("blink");
-			window.setTimeout(() => critter.el.classList.remove("blink"), 300);
+		handle.addEventListener("pointerdown", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			handle.setPointerCapture(e.pointerId);
+			fill = { col: sel.c, from: sel.r, to: sel.r };
+		});
+		handle.addEventListener("pointerup", finishFill);
+		handle.addEventListener("pointercancel", () => {
+			fill = null;
+			if (preview) preview.hidden = true;
+		});
+
+		grid.addEventListener("keydown", (e) => {
+			if (e.target === editor) return;
+			const moves: Record<string, [number, number]> = {
+				ArrowLeft: [-1, 0],
+				ArrowRight: [1, 0],
+				ArrowUp: [0, -1],
+				ArrowDown: [0, 1],
+			};
+			const move = moves[e.key];
+			if (move) {
+				e.preventDefault();
+				if (e.shiftKey && move[1] > 0 && sheet.has(refOf(sel.c, sel.r))) {
+					fill = { col: sel.c, from: sel.r, to: sel.r };
+					fillTo(sel.r + 1);
+					finishFill();
+					return;
+				}
+				select(sel.c + move[0], sel.r + move[1]);
+			} else if (e.key === "Enter" || e.key === "F2") {
+				e.preventDefault();
+				startEdit();
+			} else if (e.key === "Delete" || e.key === "Backspace") {
+				e.preventDefault();
+				clearCell();
+			} else if (e.key === "Tab") {
+				e.preventDefault();
+				select(sel.c + (e.shiftKey ? -1 : 1), sel.r);
+			} else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+				e.preventDefault();
+				startEdit(e.key);
+			}
+		});
+
+		editor.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				stopEdit(true);
+				select(sel.c, sel.r + 1);
+			} else if (e.key === "Tab") {
+				e.preventDefault();
+				stopEdit(true);
+				select(sel.c + (e.shiftKey ? -1 : 1), sel.r);
+			} else if (e.key === "Escape") {
+				e.preventDefault();
+				stopEdit(false);
+			}
+		});
+		editor.addEventListener("blur", () => stopEdit(true));
+
+		for (const button of document.querySelectorAll<HTMLButtonElement>(".toolbar button")) {
+			button.addEventListener("click", () => {
+				const action = button.dataset.action;
+				if (action === "sort-asc") sortBy(sel.c, 1);
+				else if (action === "sort-desc") sortBy(sel.c, -1);
+				else if (action === "autosum") autosum();
+			});
 		}
-	}, BLINK_TICK);
-}
+
+		window.setInterval(() => {
+			const giddy = [...sheet].find(([, entry]) => /RAND\(/.test(entry.raw))?.[0];
+			if (!giddy) return;
+			render(giddy);
+			const critter = critters.get(giddy);
+			if (critter) play(critter.el, "jiggle");
+		}, RAND_EVERY);
+
+		window.setInterval(() => {
+			if (reduce) return;
+			for (const critter of critters.values()) {
+				if (Math.random() >= BLINK_TICK / BLINK_EVERY) continue;
+				critter.el.classList.add("blink");
+				window.setTimeout(() => critter.el.classList.remove("blink"), 300);
+			}
+		}, BLINK_TICK);
+	}
 </script>
 
 <style>
-:root {
-	--paper: #ffffff;
-	--chrome: #f7f4f1;
-	--line: #e7e1da;
-	--head: #f1ede8;
-	--ink: #1c1a19;
-	--muted: #78706a;
-	--pink: #e2337f;
-	--pink-soft: #fde4ef;
-	--blush: #ff9cc4;
-	--row-h: 36px;
-}
-:global(body) {
-	margin: 0;
-	background: var(--chrome);
-	color: var(--ink);
-	font-family: var(--font-instrument-sans), sans-serif;
-}
-.app {
-	display: grid;
-	grid-template-rows: auto auto auto 1fr auto;
-	block-size: 100dvh;
-}
-.topbar {
-	display: flex;
-	align-items: center;
-	gap: 1.25rem;
-	padding: 0.7rem 1rem 0.4rem;
-}
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
-.logo {
-	position: relative;
-	inline-size: 30px;
-	block-size: 30px;
-	border-radius: 8px;
-	background: var(--pink);
-}
-.logo i {
-	position: absolute;
-	top: 10px;
-	inline-size: 4px;
-	block-size: 4px;
-	border-radius: 50%;
-	background: #fff;
-}
-.logo i:first-child {
-	left: 9px;
-}
-.logo i:nth-child(2) {
-	right: 9px;
-}
-.logo b {
-	position: absolute;
-	left: 50%;
-	top: 16px;
-	box-sizing: border-box;
-	inline-size: 10px;
-	block-size: 5px;
-	translate: -50% 0;
-	border: 2px solid #fff;
-	border-top: 0;
-	border-radius: 0 0 8px 8px;
-}
-.brand-name {
-	font-family: var(--font-fredoka), sans-serif;
-	font-weight: 600;
-	font-size: 1.3rem;
-	color: var(--pink);
-}
-.file h1 {
-	margin: 0;
-	font-size: 1rem;
-	font-weight: 600;
-}
-.saved {
-	margin: 0;
-	font-size: 0.78rem;
-	color: var(--muted);
-}
-.toolbar {
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
-	padding: 0.35rem 1rem;
-	border-block: 1px solid var(--line);
-	background: var(--chrome);
-}
-.toolbar button {
-	padding: 0.35rem 0.7rem;
-	border: 1px solid var(--line);
-	border-radius: 6px;
-	background: var(--paper);
-	color: var(--ink);
-	font: inherit;
-	font-size: 0.85rem;
-	cursor: pointer;
-}
-.toolbar button:hover {
-	border-color: var(--pink);
-}
-.toolbar button:focus-visible {
-	outline: 2px solid var(--pink);
-	outline-offset: 1px;
-}
-.toast {
-	margin: 0 0 0 0.5rem;
-	font-family: var(--font-fredoka), sans-serif;
-	font-size: 0.9rem;
-	color: var(--pink);
-}
-.formula-bar {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	min-block-size: 1.6rem;
-	padding: 0.3rem 1rem;
-	border-block-end: 1px solid var(--line);
-	background: var(--paper);
-	font-size: 0.88rem;
-}
-.ref-box {
-	min-inline-size: 3rem;
-	padding-inline-end: 0.6rem;
-	border-inline-end: 1px solid var(--line);
-	font-weight: 600;
-}
-.fx {
-	font-style: italic;
-	color: var(--muted);
-}
-.raw {
-	font-variant-numeric: tabular-nums;
-}
-.scroller {
-	overflow: auto;
-	background: var(--paper);
-	overscroll-behavior: contain;
-}
-.grid {
-	position: relative;
-	display: grid;
-	grid-template-columns: 44px 172px repeat(19, 100px);
-	grid-auto-rows: var(--row-h);
-	inline-size: max-content;
-	font-size: 0.88rem;
-	font-variant-numeric: tabular-nums;
-}
-.grid:focus {
-	outline: none;
-}
-.row {
-	display: contents;
-}
-.corner,
-.colhead,
-.rowhead {
-	position: sticky;
-	z-index: 3;
-	display: grid;
-	place-items: center;
-	border-inline-end: 1px solid var(--line);
-	border-block-end: 1px solid var(--line);
-	background: var(--head);
-	color: var(--muted);
-	font-size: 0.78rem;
-}
-.colhead {
-	top: 0;
-}
-.rowhead {
-	left: 0;
-}
-.corner {
-	top: 0;
-	left: 0;
-	z-index: 4;
-}
-.cell {
-	display: grid;
-	grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-	border-inline-end: 1px solid var(--line);
-	border-block-end: 1px solid var(--line);
-	transition: background-color 0.25s;
-}
-.cell:global(.fan) {
-	background: var(--pink-soft);
-}
-.cell[data-ref="R44"] {
-	place-items: center;
-}
-.cursor {
-	position: absolute;
-	top: 0;
-	left: 0;
-	z-index: 2;
-	box-sizing: border-box;
-	border: 2px solid var(--pink);
-	border-radius: 2px;
-	pointer-events: none;
-	transition:
-		translate 0.18s cubic-bezier(0.3, 1.3, 0.5, 1),
-		inline-size 0.18s,
-		block-size 0.18s;
-}
-.grid:focus-visible .cursor {
-	box-shadow: 0 0 0 3px rgb(226 51 127 / 0.25);
-}
-.handle {
-	position: absolute;
-	right: -5px;
-	bottom: -5px;
-	inline-size: 8px;
-	block-size: 8px;
-	border: 1.5px solid var(--paper);
-	background: var(--pink);
-	pointer-events: auto;
-	cursor: crosshair;
-	touch-action: none;
-}
-.fill-preview {
-	position: absolute;
-	top: 0;
-	left: 0;
-	z-index: 2;
-	box-sizing: border-box;
-	border: 2px dashed var(--pink);
-	pointer-events: none;
-}
-.editor {
-	position: absolute;
-	top: 0;
-	left: 0;
-	z-index: 5;
-	box-sizing: border-box;
-	padding: 0 6px;
-	border: 2px solid var(--pink);
-	background: var(--paper);
-	color: var(--ink);
-	font: inherit;
-	outline: none;
-}
-.status {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
+	:root {
+		--paper: #ffffff;
+		--chrome: #f7f4f1;
+		--line: #e7e1da;
+		--head: #f1ede8;
+		--ink: #1c1a19;
+		--muted: #78706a;
+		--pink: #e2337f;
+		--pink-soft: #fde4ef;
+		--blush: #ff9cc4;
+		--row-h: 36px;
+	}
+	:global(body) {
+		margin: 0;
+		background: var(--chrome);
+		color: var(--ink);
+		font-family: var(--font-instrument-sans), sans-serif;
+	}
+	.app {
+		display: grid;
+		grid-template-rows: auto auto auto 1fr auto;
+		block-size: 100dvh;
+	}
+	.topbar {
+		display: flex;
+		align-items: center;
+		gap: 1.25rem;
+		padding: 0.7rem 1rem 0.4rem;
+	}
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.logo {
+		position: relative;
+		inline-size: 30px;
+		block-size: 30px;
+		border-radius: 8px;
+		background: var(--pink);
+	}
+	.logo i {
+		position: absolute;
+		top: 10px;
+		inline-size: 4px;
+		block-size: 4px;
+		border-radius: 50%;
+		background: #fff;
+	}
+	.logo i:first-child {
+		left: 9px;
+	}
+	.logo i:nth-child(2) {
+		right: 9px;
+	}
+	.logo b {
+		position: absolute;
+		left: 50%;
+		top: 16px;
+		box-sizing: border-box;
+		inline-size: 10px;
+		block-size: 5px;
+		translate: -50% 0;
+		border: 2px solid #fff;
+		border-top: 0;
+		border-radius: 0 0 8px 8px;
+	}
+	.brand-name {
+		font-family: var(--font-fredoka), sans-serif;
+		font-weight: 600;
+		font-size: 1.3rem;
+		color: var(--pink);
+	}
+	.file h1 {
+		margin: 0;
+		font-size: 1rem;
+		font-weight: 600;
+	}
+	.saved {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+	.toolbar {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 1rem;
+		border-block: 1px solid var(--line);
+		background: var(--chrome);
+	}
+	.toolbar button {
+		padding: 0.35rem 0.7rem;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		background: var(--paper);
+		color: var(--ink);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.toolbar button:hover {
+		border-color: var(--pink);
+	}
+	.toolbar button:focus-visible {
+		outline: 2px solid var(--pink);
+		outline-offset: 1px;
+	}
+	.toast {
+		margin: 0 0 0 0.5rem;
+		font-family: var(--font-fredoka), sans-serif;
+		font-size: 0.9rem;
+		color: var(--pink);
+	}
+	.formula-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-block-size: 1.6rem;
+		padding: 0.3rem 1rem;
+		border-block-end: 1px solid var(--line);
+		background: var(--paper);
+		font-size: 0.88rem;
+	}
+	.ref-box {
+		min-inline-size: 3rem;
+		padding-inline-end: 0.6rem;
+		border-inline-end: 1px solid var(--line);
+		font-weight: 600;
+	}
+	.fx {
+		font-style: italic;
+		color: var(--muted);
+	}
+	.raw {
+		font-variant-numeric: tabular-nums;
+	}
+	.scroller {
+		overflow: auto;
+		background: var(--paper);
+		overscroll-behavior: contain;
+	}
+	.grid {
+		position: relative;
+		display: grid;
+		grid-template-columns: 44px 172px repeat(19, 100px);
+		grid-auto-rows: var(--row-h);
+		inline-size: max-content;
+		font-size: 0.88rem;
+		font-variant-numeric: tabular-nums;
+	}
+	.grid:focus {
+		outline: none;
+	}
+	.row {
+		display: contents;
+	}
+	.corner,
+	.colhead,
+	.rowhead {
+		position: sticky;
+		z-index: 3;
+		display: grid;
+		place-items: center;
+		border-inline-end: 1px solid var(--line);
+		border-block-end: 1px solid var(--line);
+		background: var(--head);
+		color: var(--muted);
+		font-size: 0.78rem;
+	}
+	.colhead {
+		top: 0;
+	}
+	.rowhead {
+		left: 0;
+	}
+	.corner {
+		top: 0;
+		left: 0;
+		z-index: 4;
+	}
+	.cell {
+		display: grid;
+		grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+		border-inline-end: 1px solid var(--line);
+		border-block-end: 1px solid var(--line);
+		transition: background-color 0.25s;
+	}
+	.cell:global(.fan) {
+		background: var(--pink-soft);
+	}
+	.cell[data-ref="R44"] {
+		place-items: center;
+	}
+	.cursor {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 2;
+		box-sizing: border-box;
+		border: 2px solid var(--pink);
+		border-radius: 2px;
+		pointer-events: none;
+		transition:
+			translate 0.18s cubic-bezier(0.3, 1.3, 0.5, 1),
+			inline-size 0.18s,
+			block-size 0.18s;
+	}
+	.grid:focus-visible .cursor {
+		box-shadow: 0 0 0 3px rgb(226 51 127 / 0.25);
+	}
+	.handle {
+		position: absolute;
+		right: -5px;
+		bottom: -5px;
+		inline-size: 8px;
+		block-size: 8px;
+		border: 1.5px solid var(--paper);
+		background: var(--pink);
+		pointer-events: auto;
+		cursor: crosshair;
+		touch-action: none;
+	}
+	.fill-preview {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 2;
+		box-sizing: border-box;
+		border: 2px dashed var(--pink);
+		pointer-events: none;
+	}
+	.editor {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 5;
+		box-sizing: border-box;
+		padding: 0 6px;
+		border: 2px solid var(--pink);
+		background: var(--paper);
+		color: var(--ink);
+		font: inherit;
+		outline: none;
+	}
+	.status {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
 
-.cell > :global(*) {
-	grid-area: 1 / 1;
-}
-.cell :global(.critter) {
-	place-self: stretch;
-	display: flex;
-	flex-direction: row-reverse;
-	align-items: center;
-	justify-content: space-between;
-	gap: 6px;
-	padding: 0 6px;
-	transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
-}
-.cell :global(.critter.num) {
-	flex-direction: row;
-}
-.cell :global(.critter.lean) {
-	transform: translate(calc(var(--dx) * 2.5px), calc(var(--dy) * 2px))
-		rotate(calc(var(--dx) * 6deg));
-}
-.cell :global(.val) {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.cell :global(.face) {
-	position: relative;
-	flex: none;
-	inline-size: 20px;
-	block-size: 14px;
-	zoom: 1.9;
-}
-.cell :global(.eye) {
-	position: absolute;
-	top: 3px;
-	inline-size: 3.5px;
-	block-size: 3.5px;
-	border-radius: 50%;
-	background: var(--ink);
-	translate: var(--lx, 0) var(--ly, 0);
-	transition: translate 0.12s linear;
-}
-.cell :global(.blink .eye) {
-	animation: blink 0.3s;
-}
-.cell :global(.eye:first-child) {
-	left: 4px;
-}
-.cell :global(.eye:nth-child(2)) {
-	right: 4px;
-}
-.cell :global(.mouth) {
-	position: absolute;
-	left: 50%;
-	top: 8px;
-	box-sizing: border-box;
-	inline-size: 6px;
-	block-size: 3.5px;
-	translate: -50% 0;
-	border: 1.5px solid var(--ink);
-	border-top: 0;
-	border-radius: 0 0 6px 6px;
-}
-.cell :global(.mouth::after) {
-	content: "";
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	box-sizing: border-box;
-	inline-size: 4px;
-	block-size: 4px;
-	translate: -50% -50%;
-	border: 1.5px solid var(--ink);
-	border-radius: 50%;
-	opacity: 0;
-}
-.cell :global(.face::before),
-.cell :global(.face::after) {
-	content: "";
-	position: absolute;
-	top: 7px;
-	inline-size: 4px;
-	block-size: 2.5px;
-	border-radius: 50%;
-	background: var(--blush);
-	opacity: 0;
-	transition: opacity 0.3s;
-}
-.cell :global(.face::before) {
-	left: 0;
-}
-.cell :global(.face::after) {
-	right: 0;
-}
-@keyframes blink {
-	50% {
-		scale: 1 0.1;
+	.cell > :global(*) {
+		grid-area: 1 / 1;
 	}
-}
-
-.cell :global([data-mood="proud"] .face::before),
-.cell :global([data-mood="proud"] .face::after),
-.cell :global([data-mood="shy"] .face::before),
-.cell :global([data-mood="shy"] .face::after) {
-	opacity: 1;
-}
-.cell :global([data-mood="proud"] .mouth) {
-	inline-size: 8px;
-	block-size: 4.5px;
-}
-.cell :global([data-mood="proud"] .eye),
-.cell :global(.cheer .eye) {
-	top: 4px;
-	box-sizing: border-box;
-	inline-size: 4px;
-	block-size: 4px;
-	border-radius: 0;
-	background: none;
-	border-top: 1.5px solid var(--ink);
-	border-left: 1.5px solid var(--ink);
-	rotate: 45deg;
-	animation: none;
-}
-.cell :global([data-mood="shy"] .mouth) {
-	inline-size: 3px;
-	block-size: 2px;
-}
-.cell :global([data-mood="shy"] .eye) {
-	translate: calc(var(--lx, 0px) * 0.5) 1px;
-}
-.cell :global([data-mood="worried"] .mouth) {
-	top: 9px;
-	border-top: 1.5px solid var(--ink);
-	border-bottom: 0;
-	border-radius: 6px 6px 0 0;
-}
-.cell :global([data-mood="sleepy"] .eye) {
-	top: 4.5px;
-	block-size: 1.5px;
-	border-radius: 1px;
-	translate: none;
-	animation: none;
-}
-.cell :global([data-mood="sleepy"] .mouth) {
-	inline-size: 3.5px;
-	block-size: 3.5px;
-	border: 1.5px solid var(--ink);
-	border-radius: 50%;
-}
-.cell :global([data-mood="giddy"] .mouth),
-.cell :global(.cheer .mouth) {
-	inline-size: 8px;
-	block-size: 4.5px;
-	background: var(--ink);
-	border-radius: 0 0 8px 8px;
-}
-.cell :global([data-mood="clever"] .mouth) {
-	rotate: -14deg;
-	translate: -30% 0;
-}
-.cell :global([data-mood="dizzy"] .eye) {
-	box-sizing: border-box;
-	inline-size: 4px;
-	block-size: 4px;
-	border: 1.2px solid var(--ink);
-	background: none;
-	animation: spin 1s linear infinite;
-}
-@keyframes spin {
-	to {
-		rotate: 1turn;
+	.cell :global(.critter) {
+		place-self: stretch;
+		display: flex;
+		flex-direction: row-reverse;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 0 6px;
+		transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 	}
-}
-
-.cell :global(.oh) {
-	animation: hop 0.45s cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-.cell :global(.oh .mouth) {
-	animation: oh 0.6s;
-}
-.cell :global(.oh .mouth::after) {
-	animation: oh-ring 0.6s;
-}
-.cell :global(.cheer) {
-	animation: hop 0.5s cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-.cell :global(.hatch) {
-	animation: hatch 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
-}
-.cell :global(.jiggle) {
-	animation: jiggle 0.4s;
-}
-.cell :global(.leaving) {
-	animation: leave 0.7s ease-in forwards;
-}
-@keyframes hop {
-	0%,
-	100% {
-		translate: 0 0;
+	.cell :global(.critter.num) {
+		flex-direction: row;
 	}
-	40% {
-		translate: 0 -7px;
+	.cell :global(.critter.lean) {
+		transform: translate(calc(var(--dx) * 2.5px), calc(var(--dy) * 2px))
+			rotate(calc(var(--dx) * 6deg));
 	}
-}
-@keyframes oh {
-	20%,
-	70% {
-		border-color: transparent;
-		background-color: transparent;
+	.cell :global(.val) {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
-}
-@keyframes oh-ring {
-	20%,
-	70% {
-		opacity: 1;
+	.cell :global(.face) {
+		position: relative;
+		flex: none;
+		inline-size: 20px;
+		block-size: 14px;
+		zoom: 1.9;
 	}
-}
-@keyframes hatch {
-	from {
-		scale: 0.2;
+	.cell :global(.eye) {
+		position: absolute;
+		top: 3px;
+		inline-size: 3.5px;
+		block-size: 3.5px;
+		border-radius: 50%;
+		background: var(--ink);
+		translate: var(--lx, 0) var(--ly, 0);
+		transition: translate 0.12s linear;
+	}
+	.cell :global(.blink .eye) {
+		animation: blink 0.3s;
+	}
+	.cell :global(.eye:first-child) {
+		left: 4px;
+	}
+	.cell :global(.eye:nth-child(2)) {
+		right: 4px;
+	}
+	.cell :global(.mouth) {
+		position: absolute;
+		left: 50%;
+		top: 8px;
+		box-sizing: border-box;
+		inline-size: 6px;
+		block-size: 3.5px;
+		translate: -50% 0;
+		border: 1.5px solid var(--ink);
+		border-top: 0;
+		border-radius: 0 0 6px 6px;
+	}
+	.cell :global(.mouth::after) {
+		content: "";
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		box-sizing: border-box;
+		inline-size: 4px;
+		block-size: 4px;
+		translate: -50% -50%;
+		border: 1.5px solid var(--ink);
+		border-radius: 50%;
 		opacity: 0;
 	}
-}
-@keyframes jiggle {
-	25% {
-		rotate: -5deg;
+	.cell :global(.face::before),
+	.cell :global(.face::after) {
+		content: "";
+		position: absolute;
+		top: 7px;
+		inline-size: 4px;
+		block-size: 2.5px;
+		border-radius: 50%;
+		background: var(--blush);
+		opacity: 0;
+		transition: opacity 0.3s;
 	}
-	75% {
-		rotate: 5deg;
+	.cell :global(.face::before) {
+		left: 0;
 	}
-}
-@keyframes leave {
-	40% {
-		scale: 1.05;
+	.cell :global(.face::after) {
+		right: 0;
+	}
+	@keyframes blink {
+		50% {
+			scale: 1 0.1;
+		}
+	}
+
+	.cell :global([data-mood="proud"] .face::before),
+	.cell :global([data-mood="proud"] .face::after),
+	.cell :global([data-mood="shy"] .face::before),
+	.cell :global([data-mood="shy"] .face::after) {
 		opacity: 1;
 	}
-	to {
-		scale: 0.3;
-		opacity: 0;
+	.cell :global([data-mood="proud"] .mouth) {
+		inline-size: 8px;
+		block-size: 4.5px;
 	}
-}
+	.cell :global([data-mood="proud"] .eye),
+	.cell :global(.cheer .eye) {
+		top: 4px;
+		box-sizing: border-box;
+		inline-size: 4px;
+		block-size: 4px;
+		border-radius: 0;
+		background: none;
+		border-top: 1.5px solid var(--ink);
+		border-left: 1.5px solid var(--ink);
+		rotate: 45deg;
+		animation: none;
+	}
+	.cell :global([data-mood="shy"] .mouth) {
+		inline-size: 3px;
+		block-size: 2px;
+	}
+	.cell :global([data-mood="shy"] .eye) {
+		translate: calc(var(--lx, 0px) * 0.5) 1px;
+	}
+	.cell :global([data-mood="worried"] .mouth) {
+		top: 9px;
+		border-top: 1.5px solid var(--ink);
+		border-bottom: 0;
+		border-radius: 6px 6px 0 0;
+	}
+	.cell :global([data-mood="sleepy"] .eye) {
+		top: 4.5px;
+		block-size: 1.5px;
+		border-radius: 1px;
+		translate: none;
+		animation: none;
+	}
+	.cell :global([data-mood="sleepy"] .mouth) {
+		inline-size: 3.5px;
+		block-size: 3.5px;
+		border: 1.5px solid var(--ink);
+		border-radius: 50%;
+	}
+	.cell :global([data-mood="giddy"] .mouth),
+	.cell :global(.cheer .mouth) {
+		inline-size: 8px;
+		block-size: 4.5px;
+		background: var(--ink);
+		border-radius: 0 0 8px 8px;
+	}
+	.cell :global([data-mood="clever"] .mouth) {
+		rotate: -14deg;
+		translate: -30% 0;
+	}
+	.cell :global([data-mood="dizzy"] .eye) {
+		box-sizing: border-box;
+		inline-size: 4px;
+		block-size: 4px;
+		border: 1.2px solid var(--ink);
+		background: none;
+		animation: spin 1s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			rotate: 1turn;
+		}
+	}
 
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		animation: none !important;
-		transition: none !important;
+	.cell :global(.oh) {
+		animation: hop 0.45s cubic-bezier(0.3, 0.7, 0.4, 1);
 	}
-}
+	.cell :global(.oh .mouth) {
+		animation: oh 0.6s;
+	}
+	.cell :global(.oh .mouth::after) {
+		animation: oh-ring 0.6s;
+	}
+	.cell :global(.cheer) {
+		animation: hop 0.5s cubic-bezier(0.3, 0.7, 0.4, 1);
+	}
+	.cell :global(.hatch) {
+		animation: hatch 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+	}
+	.cell :global(.jiggle) {
+		animation: jiggle 0.4s;
+	}
+	.cell :global(.leaving) {
+		animation: leave 0.7s ease-in forwards;
+	}
+	@keyframes hop {
+		0%,
+		100% {
+			translate: 0 0;
+		}
+		40% {
+			translate: 0 -7px;
+		}
+	}
+	@keyframes oh {
+		20%,
+		70% {
+			border-color: transparent;
+			background-color: transparent;
+		}
+	}
+	@keyframes oh-ring {
+		20%,
+		70% {
+			opacity: 1;
+		}
+	}
+	@keyframes hatch {
+		from {
+			scale: 0.2;
+			opacity: 0;
+		}
+	}
+	@keyframes jiggle {
+		25% {
+			rotate: -5deg;
+		}
+		75% {
+			rotate: 5deg;
+		}
+	}
+	@keyframes leave {
+		40% {
+			scale: 1.05;
+			opacity: 1;
+		}
+		to {
+			scale: 0.3;
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
 </style>

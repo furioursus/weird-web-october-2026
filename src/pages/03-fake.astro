@@ -478,1100 +478,1103 @@ const off = (l: Listing) => Math.round((1 - l.price / l.was) * 100);
 </Day>
 
 <script>
-type Step = "wheel" | "shame" | "won";
+	type Step = "wheel" | "shame" | "won";
 
-interface Spin {
-	/** Segment index the wheel stops on. */
-	land: number;
-	/** Crawl over the line into the neighboring SPIN AGAIN afterwards. */
-	creep: boolean;
-	tease: string;
-	result: string;
-}
-
-const STEP_DEG = 45;
-const SPINS: Spin[] = [
-	{ land: 1, creep: true, tease: "FREE CAT!!!", result: "So close!! You won: SPIN AGAIN" },
-	{
-		land: 5,
-		creep: true,
-		tease: "$100 COUPON!!!",
-		result: "ALMOST!!! You won: SPIN AGAIN (again)",
-	},
-	{ land: 1, creep: false, tease: "FREE CAT*!!!", result: "FREE CAT*!!! It's real this time." },
-];
-const DODGES = ["is-tl", "is-bl", "is-br"];
-
-const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const dialog = document.querySelector<HTMLDialogElement>(".promo");
-const disc = document.querySelector<SVGSVGElement>(".wheel__disc");
-const spinButton = document.querySelector<HTMLButtonElement>(".promo__spin");
-const result = document.querySelector<HTMLElement>(".promo__result");
-const closeX = document.querySelector<HTMLButtonElement>(".promo__x");
-const coupon = document.querySelector<HTMLElement>(".coupon");
-const clock = document.querySelector<HTMLElement>(".coupon__clock");
-const cartCount = document.querySelector<HTMLElement>(".cart__count");
-if (!dialog || !disc || !spinButton || !result || !closeX || !coupon || !clock || !cartCount) {
-	throw new Error("Day 3's prize wheel is missing a piece of its markup.");
-}
-
-let rotation = 0;
-let spins = 0;
-let step: Step = "wheel";
-let returnTo: Step = "wheel";
-let dodges = 0;
-let won = false;
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function show(next: Step) {
-	step = next;
-	for (const el of dialog?.querySelectorAll<HTMLElement>(".promo__step") ?? []) {
-		el.hidden = el.dataset.step !== next;
+	interface Spin {
+		/** Segment index the wheel stops on. */
+		land: number;
+		/** Crawl over the line into the neighboring SPIN AGAIN afterwards. */
+		creep: boolean;
+		tease: string;
+		result: string;
 	}
-	dialog?.setAttribute("aria-labelledby", `promo-${next}-title`);
-	const focus = { wheel: spinButton, shame: ".promo__keep", won: ".promo__claim" }[next];
-	(typeof focus === "string" ? dialog?.querySelector<HTMLElement>(focus) : focus)?.focus();
-}
 
-/** Rotation that puts wheel angle `theta` (clockwise from the segment-0 center) under the pointer. */
-function rotationFor(theta: number, minTurns: number) {
-	const base = rotation + minTurns * 360;
-	return base + ((((-theta - base) % 360) + 360) % 360);
-}
+	const STEP_DEG = 45;
+	const SPINS: Spin[] = [
+		{ land: 1, creep: true, tease: "FREE CAT!!!", result: "So close!! You won: SPIN AGAIN" },
+		{
+			land: 5,
+			creep: true,
+			tease: "$100 COUPON!!!",
+			result: "ALMOST!!! You won: SPIN AGAIN (again)",
+		},
+		{ land: 1, creep: false, tease: "FREE CAT*!!!", result: "FREE CAT*!!! It's real this time." },
+	];
+	const DODGES = ["is-tl", "is-bl", "is-br"];
 
-async function turnTo(target: number, duration: number, easing: string) {
-	if (!disc) return;
-	if (!reduce && duration > 0) {
-		await disc.animate([{ rotate: `${rotation}deg` }, { rotate: `${target}deg` }], {
-			duration,
-			easing,
-		}).finished;
+	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+	const dialog = document.querySelector<HTMLDialogElement>(".promo");
+	const disc = document.querySelector<SVGSVGElement>(".wheel__disc");
+	const spinButton = document.querySelector<HTMLButtonElement>(".promo__spin");
+	const result = document.querySelector<HTMLElement>(".promo__result");
+	const closeX = document.querySelector<HTMLButtonElement>(".promo__x");
+	const coupon = document.querySelector<HTMLElement>(".coupon");
+	const clock = document.querySelector<HTMLElement>(".coupon__clock");
+	const cartCount = document.querySelector<HTMLElement>(".cart__count");
+	if (!dialog || !disc || !spinButton || !result || !closeX || !coupon || !clock || !cartCount) {
+		throw new Error("Day 3's prize wheel is missing a piece of its markup.");
 	}
-	rotation = target;
-	disc.style.rotate = `${target}deg`;
-}
 
-async function spin() {
-	const plan = SPINS[Math.min(spins, SPINS.length - 1)];
-	if (!plan || !spinButton || !result) return;
-	spins++;
-	spinButton.disabled = true;
-	result.textContent = "Spinning…";
+	let rotation = 0;
+	let spins = 0;
+	let step: Step = "wheel";
+	let returnTo: Step = "wheel";
+	let dodges = 0;
+	let won = false;
 
-	const center = plan.land * STEP_DEG;
-	const landAt = plan.creep ? center - STEP_DEG / 2 + 5 : center;
-	await turnTo(rotationFor(landAt, 5), 5200, "cubic-bezier(0.12, 0.6, 0.1, 1)");
-	result.textContent = plan.tease;
+	const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-	if (plan.creep) {
-		await wait(900);
-		await turnTo(rotation + 11, 1600, "cubic-bezier(0.6, 0, 0.4, 1)");
-		await wait(300);
+	function show(next: Step) {
+		step = next;
+		for (const el of dialog?.querySelectorAll<HTMLElement>(".promo__step") ?? []) {
+			el.hidden = el.dataset.step !== next;
+		}
+		dialog?.setAttribute("aria-labelledby", `promo-${next}-title`);
+		const focus = { wheel: spinButton, shame: ".promo__keep", won: ".promo__claim" }[next];
+		(typeof focus === "string" ? dialog?.querySelector<HTMLElement>(focus) : focus)?.focus();
+	}
+
+	/** Rotation that puts wheel angle `theta` (clockwise from the segment-0 center) under the pointer. */
+	function rotationFor(theta: number, minTurns: number) {
+		const base = rotation + minTurns * 360;
+		return base + ((((-theta - base) % 360) + 360) % 360);
+	}
+
+	async function turnTo(target: number, duration: number, easing: string) {
+		if (!disc) return;
+		if (!reduce && duration > 0) {
+			await disc.animate([{ rotate: `${rotation}deg` }, { rotate: `${target}deg` }], {
+				duration,
+				easing,
+			}).finished;
+		}
+		rotation = target;
+		disc.style.rotate = `${target}deg`;
+	}
+
+	async function spin() {
+		const plan = SPINS[Math.min(spins, SPINS.length - 1)];
+		if (!plan || !spinButton || !result) return;
+		spins++;
+		spinButton.disabled = true;
+		result.textContent = "Spinning…";
+
+		const center = plan.land * STEP_DEG;
+		const landAt = plan.creep ? center - STEP_DEG / 2 + 5 : center;
+		await turnTo(rotationFor(landAt, 5), 5200, "cubic-bezier(0.12, 0.6, 0.1, 1)");
+		result.textContent = plan.tease;
+
+		if (plan.creep) {
+			await wait(900);
+			await turnTo(rotation + 11, 1600, "cubic-bezier(0.6, 0, 0.4, 1)");
+			await wait(300);
+			result.textContent = plan.result;
+			spinButton.textContent = "SPIN AGAIN";
+			spinButton.disabled = false;
+			return;
+		}
+
 		result.textContent = plan.result;
-		spinButton.textContent = "SPIN AGAIN";
-		spinButton.disabled = false;
-		return;
+		won = true;
+		if (cartCount) cartCount.textContent = "15";
+		await wait(900);
+		show("won");
+		confetti();
 	}
 
-	result.textContent = plan.result;
-	won = true;
-	if (cartCount) cartCount.textContent = "15";
-	await wait(900);
-	show("won");
-	confetti();
-}
-
-function confetti() {
-	if (reduce || !dialog) return;
-	const colors = ["#e85d04", "#1d4ed8", "#ff2e93", "#111", "#ffd23f"];
-	for (let i = 0; i < 70; i++) {
-		const bit = document.createElement("span");
-		bit.className = "confetti";
-		bit.style.left = `${Math.random() * 100}%`;
-		bit.style.background = colors[i % colors.length] ?? "#e85d04";
-		dialog.append(bit);
-		const drift = (Math.random() - 0.5) * 160;
-		bit
-			.animate(
-				[
-					{ translate: "0 -20px", rotate: "0turn" },
-					{ translate: `${drift}px 110vh`, rotate: `${2 + Math.random() * 3}turn` },
-				],
-				{ duration: 1800 + Math.random() * 1400, delay: Math.random() * 300, easing: "ease-in" },
-			)
-			.finished.then(() => bit.remove());
+	function confetti() {
+		if (reduce || !dialog) return;
+		const colors = ["#e85d04", "#1d4ed8", "#ff2e93", "#111", "#ffd23f"];
+		for (let i = 0; i < 70; i++) {
+			const bit = document.createElement("span");
+			bit.className = "confetti";
+			bit.style.left = `${Math.random() * 100}%`;
+			bit.style.background = colors[i % colors.length] ?? "#e85d04";
+			dialog.append(bit);
+			const drift = (Math.random() - 0.5) * 160;
+			bit
+				.animate(
+					[
+						{ translate: "0 -20px", rotate: "0turn" },
+						{ translate: `${drift}px 110vh`, rotate: `${2 + Math.random() * 3}turn` },
+					],
+					{ duration: 1800 + Math.random() * 1400, delay: Math.random() * 300, easing: "ease-in" },
+				)
+				.finished.then(() => bit.remove());
+		}
 	}
-}
 
-function tryToLeave() {
-	if (step === "shame") {
-		dialog?.close();
-		return;
-	}
-	returnTo = step;
-	show("shame");
-}
-
-function startCoupon() {
-	if (!coupon || !clock) return;
-	coupon.hidden = false;
-	let left = 599;
-	setInterval(() => {
-		left--;
-		if (left < 0) {
-			left = 599;
-			clock.textContent = "EXTENDED! Just for you";
+	function tryToLeave() {
+		if (step === "shame") {
+			dialog?.close();
 			return;
 		}
-		const m = String(Math.floor(left / 60)).padStart(2, "0");
-		const s = String(left % 60).padStart(2, "0");
-		clock.textContent = `${m}:${s}`;
-	}, 1000);
-}
-
-spinButton.addEventListener("click", spin);
-closeX.addEventListener("click", tryToLeave);
-dialog.addEventListener("cancel", (e) => {
-	e.preventDefault();
-	tryToLeave();
-});
-dialog.querySelector(".promo__keep")?.addEventListener("click", () => show(won ? "won" : returnTo));
-dialog.querySelector(".promo__leave")?.addEventListener("click", () => dialog.close());
-dialog.querySelector(".promo__claim")?.addEventListener("click", () => dialog.close());
-dialog.addEventListener("close", startCoupon, { once: true });
-
-const viewerButtons = [...document.querySelectorAll<HTMLButtonElement>(".viewers")];
-for (const button of viewerButtons) {
-	const count = button.querySelector(".viewers__count");
-	const wander = () => {
-		if (count) count.textContent = String(Math.floor(Math.random() * 200));
-		setTimeout(wander, 2000 + Math.random() * 3000);
-	};
-	setTimeout(wander, 2000 + Math.random() * 3000);
-	button.addEventListener("click", () => button.classList.toggle("is-showing"));
-	const reset = () => button.classList.remove("is-dismissed");
-	button.parentElement?.addEventListener("pointerleave", reset);
-	button.addEventListener("blur", reset);
-}
-document.addEventListener("keydown", (e) => {
-	if (e.key !== "Escape" || dialog.open) return;
-	for (const button of viewerButtons) {
-		button.classList.remove("is-showing");
-		button.classList.add("is-dismissed");
+		returnTo = step;
+		show("shame");
 	}
-});
 
-for (const badge of document.querySelectorAll<HTMLElement>("[data-stock]")) {
-	let stock = Number(badge.dataset.stock);
-	setInterval(() => {
-		stock++;
-		badge.textContent = `Only ${stock} left`;
-	}, 6000);
-}
-
-const SEEN = "wwo:furmu-wheel";
-
-function seenWheel() {
-	try {
-		return sessionStorage.getItem(SEEN) === "1";
-	} catch {
-		return false;
-	}
-}
-
-function markSeen() {
-	try {
-		sessionStorage.setItem(SEEN, "1");
-	} catch {
-		// Storage blocked: the wheel just shows on every load.
-	}
-}
-
-const CREAK = [0, 3, 1.5, 6, 4, 10, 8.5, 14];
-const CREAK_MS = 1300;
-/** Wooden door resonances: frequency (Hz), decay (s), level. */
-const DOOR_MODES = [
-	[190, 0.006, 1],
-	[430, 0.004, 0.7],
-	[960, 0.0025, 0.4],
-	[2100, 0.001, 0.15],
-] as const;
-const announce = document.querySelector<HTMLElement>(".announce");
-const toast = document.querySelector<HTMLElement>(".toast");
-let toastTimer = 0;
-
-/** Screen readers hear it through the status region; sighted visitors can also get a toast. */
-function say(text: string, show = true) {
-	if (announce) announce.textContent = text;
-	if (!show || !toast) return;
-	toast.textContent = text;
-	toast.hidden = false;
-	clearTimeout(toastTimer);
-	toastTimer = window.setTimeout(() => {
-		toast.hidden = true;
-	}, 3600);
-}
-
-const inspects = [...document.querySelectorAll<HTMLButtonElement>(".inspect")];
-for (const button of inspects) {
-	button.addEventListener("click", () => {
-		const photo = button.closest(".card__photo");
-		if (!photo) return;
-		if (photo.classList.contains("is-fake")) {
-			say("Still counterfeit.");
-			return;
-		}
-		photo.classList.add("is-fake");
-		const left = inspects.length - document.querySelectorAll(".card__photo.is-fake").length;
-		say(
-			left
-				? `COUNTERFEIT. ${left} more on this page. One cat here is real.`
-				: "Every listing is counterfeit. Real cats don't come from marketplaces. Try the reviews.",
-		);
-	});
-}
-let audio: AudioContext | undefined;
-
-/**
- * Stick-slip friction: a jittery pulse train whose rate is the pitch, each pulse ringing the
- * door's wood resonances. One burst per downward jerk in CREAK, so the sound tracks the wobble.
- */
-function creakSound() {
-	try {
-		audio ??= new AudioContext();
-	} catch {
-		return;
-	}
-	const ctx = audio;
-	void ctx.resume();
-	const sr = ctx.sampleRate;
-	const data = new Float32Array(Math.ceil((CREAK_MS / 1000 + 0.05) * sr));
-	const span = CREAK_MS / 1000 / (CREAK.length - 1);
-	const ring = Math.floor(sr * 0.03);
-
-	CREAK.forEach((deg, i) => {
-		const next = CREAK[i + 1];
-		if (next === undefined || next <= deg) return;
-		const start = i * span;
-		const low = 38 + i * 4;
-		const high = low + 9 * (next - deg);
-		for (let t = start; t < start + span; ) {
-			const p = (t - start) / span;
-			const amp = Math.sin(Math.PI * p) * (0.7 + 0.3 * Math.random());
-			const detune = 1 + (Math.random() - 0.5) * 0.04;
-			const at = Math.floor(t * sr);
-			for (let k = 0; k < ring && at + k < data.length; k++) {
-				let s = 0;
-				for (const [f, decay, level] of DOOR_MODES) {
-					s += level * Math.exp(-k / (decay * sr)) * Math.sin((2 * Math.PI * f * detune * k) / sr);
-				}
-				data[at + k] = (data[at + k] ?? 0) + amp * s;
+	function startCoupon() {
+		if (!coupon || !clock) return;
+		coupon.hidden = false;
+		let left = 599;
+		setInterval(() => {
+			left--;
+			if (left < 0) {
+				left = 599;
+				clock.textContent = "EXTENDED! Just for you";
+				return;
 			}
-			t += 1 / ((low + (high - low) * p) * (1 + (Math.random() - 0.5) * 0.35));
+			const m = String(Math.floor(left / 60)).padStart(2, "0");
+			const s = String(left % 60).padStart(2, "0");
+			clock.textContent = `${m}:${s}`;
+		}, 1000);
+	}
+
+	spinButton.addEventListener("click", spin);
+	closeX.addEventListener("click", tryToLeave);
+	dialog.addEventListener("cancel", (e) => {
+		e.preventDefault();
+		tryToLeave();
+	});
+	dialog
+		.querySelector(".promo__keep")
+		?.addEventListener("click", () => show(won ? "won" : returnTo));
+	dialog.querySelector(".promo__leave")?.addEventListener("click", () => dialog.close());
+	dialog.querySelector(".promo__claim")?.addEventListener("click", () => dialog.close());
+	dialog.addEventListener("close", startCoupon, { once: true });
+
+	const viewerButtons = [...document.querySelectorAll<HTMLButtonElement>(".viewers")];
+	for (const button of viewerButtons) {
+		const count = button.querySelector(".viewers__count");
+		const wander = () => {
+			if (count) count.textContent = String(Math.floor(Math.random() * 200));
+			setTimeout(wander, 2000 + Math.random() * 3000);
+		};
+		setTimeout(wander, 2000 + Math.random() * 3000);
+		button.addEventListener("click", () => button.classList.toggle("is-showing"));
+		const reset = () => button.classList.remove("is-dismissed");
+		button.parentElement?.addEventListener("pointerleave", reset);
+		button.addEventListener("blur", reset);
+	}
+	document.addEventListener("keydown", (e) => {
+		if (e.key !== "Escape" || dialog.open) return;
+		for (const button of viewerButtons) {
+			button.classList.remove("is-showing");
+			button.classList.add("is-dismissed");
 		}
 	});
 
-	const peak = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
-	const buffer = ctx.createBuffer(1, data.length, sr);
-	buffer.copyToChannel(
-		data.map((v) => (v / peak) * 0.4),
-		0,
-	);
-	const source = ctx.createBufferSource();
-	source.buffer = buffer;
-	source.connect(ctx.destination);
-	source.start();
-}
-
-/** Wobble on one screw, then drop a fixed-position stand-in so the fall never adds page scroll. */
-async function fallOff(el: HTMLElement) {
-	if (el.dataset.fallen) return;
-	el.dataset.fallen = "true";
-	const dir = el.dataset.flimsy === "right" ? -1 : 1;
-	const origin = dir === 1 ? "0 0" : "100% 0";
-	const box = el.getBoundingClientRect();
-	el.style.transformOrigin = origin;
-	creakSound();
-
-	if (reduce) await wait(CREAK_MS);
-	else {
-		await el.animate(
-			CREAK.map((deg) => ({ rotate: `${deg * dir}deg`, easing: "cubic-bezier(0.3, 0, 0.3, 1)" })),
-			{ duration: CREAK_MS, fill: "forwards" },
-		).finished;
+	for (const badge of document.querySelectorAll<HTMLElement>("[data-stock]")) {
+		let stock = Number(badge.dataset.stock);
+		setInterval(() => {
+			stock++;
+			badge.textContent = `Only ${stock} left`;
+		}, 6000);
 	}
 
-	const ghost = el.cloneNode(true) as HTMLElement;
-	ghost.setAttribute("aria-hidden", "true");
-	ghost.inert = true;
-	Object.assign(ghost.style, {
-		position: "fixed",
-		zIndex: "20",
-		top: `${box.top}px`,
-		left: `${box.left}px`,
-		width: `${box.width}px`,
-		height: `${box.height}px`,
-		margin: "0",
-		boxSizing: "border-box",
-		transformOrigin: origin,
-		pointerEvents: "none",
+	const SEEN = "wwo:furmu-wheel";
+
+	function seenWheel() {
+		try {
+			return sessionStorage.getItem(SEEN) === "1";
+		} catch {
+			return false;
+		}
+	}
+
+	function markSeen() {
+		try {
+			sessionStorage.setItem(SEEN, "1");
+		} catch {
+			// Storage blocked: the wheel just shows on every load.
+		}
+	}
+
+	const CREAK = [0, 3, 1.5, 6, 4, 10, 8.5, 14];
+	const CREAK_MS = 1300;
+	/** Wooden door resonances: frequency (Hz), decay (s), level. */
+	const DOOR_MODES = [
+		[190, 0.006, 1],
+		[430, 0.004, 0.7],
+		[960, 0.0025, 0.4],
+		[2100, 0.001, 0.15],
+	] as const;
+	const announce = document.querySelector<HTMLElement>(".announce");
+	const toast = document.querySelector<HTMLElement>(".toast");
+	let toastTimer = 0;
+
+	/** Screen readers hear it through the status region; sighted visitors can also get a toast. */
+	function say(text: string, show = true) {
+		if (announce) announce.textContent = text;
+		if (!show || !toast) return;
+		toast.textContent = text;
+		toast.hidden = false;
+		clearTimeout(toastTimer);
+		toastTimer = window.setTimeout(() => {
+			toast.hidden = true;
+		}, 3600);
+	}
+
+	const inspects = [...document.querySelectorAll<HTMLButtonElement>(".inspect")];
+	for (const button of inspects) {
+		button.addEventListener("click", () => {
+			const photo = button.closest(".card__photo");
+			if (!photo) return;
+			if (photo.classList.contains("is-fake")) {
+				say("Still counterfeit.");
+				return;
+			}
+			photo.classList.add("is-fake");
+			const left = inspects.length - document.querySelectorAll(".card__photo.is-fake").length;
+			say(
+				left
+					? `COUNTERFEIT. ${left} more on this page. One cat here is real.`
+					: "Every listing is counterfeit. Real cats don't come from marketplaces. Try the reviews.",
+			);
+		});
+	}
+	let audio: AudioContext | undefined;
+
+	/**
+	 * Stick-slip friction: a jittery pulse train whose rate is the pitch, each pulse ringing the
+	 * door's wood resonances. One burst per downward jerk in CREAK, so the sound tracks the wobble.
+	 */
+	function creakSound() {
+		try {
+			audio ??= new AudioContext();
+		} catch {
+			return;
+		}
+		const ctx = audio;
+		void ctx.resume();
+		const sr = ctx.sampleRate;
+		const data = new Float32Array(Math.ceil((CREAK_MS / 1000 + 0.05) * sr));
+		const span = CREAK_MS / 1000 / (CREAK.length - 1);
+		const ring = Math.floor(sr * 0.03);
+
+		CREAK.forEach((deg, i) => {
+			const next = CREAK[i + 1];
+			if (next === undefined || next <= deg) return;
+			const start = i * span;
+			const low = 38 + i * 4;
+			const high = low + 9 * (next - deg);
+			for (let t = start; t < start + span; ) {
+				const p = (t - start) / span;
+				const amp = Math.sin(Math.PI * p) * (0.7 + 0.3 * Math.random());
+				const detune = 1 + (Math.random() - 0.5) * 0.04;
+				const at = Math.floor(t * sr);
+				for (let k = 0; k < ring && at + k < data.length; k++) {
+					let s = 0;
+					for (const [f, decay, level] of DOOR_MODES) {
+						s +=
+							level * Math.exp(-k / (decay * sr)) * Math.sin((2 * Math.PI * f * detune * k) / sr);
+					}
+					data[at + k] = (data[at + k] ?? 0) + amp * s;
+				}
+				t += 1 / ((low + (high - low) * p) * (1 + (Math.random() - 0.5) * 0.35));
+			}
+		});
+
+		const peak = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
+		const buffer = ctx.createBuffer(1, data.length, sr);
+		buffer.copyToChannel(
+			data.map((v) => (v / peak) * 0.4),
+			0,
+		);
+		const source = ctx.createBufferSource();
+		source.buffer = buffer;
+		source.connect(ctx.destination);
+		source.start();
+	}
+
+	/** Wobble on one screw, then drop a fixed-position stand-in so the fall never adds page scroll. */
+	async function fallOff(el: HTMLElement) {
+		if (el.dataset.fallen) return;
+		el.dataset.fallen = "true";
+		const dir = el.dataset.flimsy === "right" ? -1 : 1;
+		const origin = dir === 1 ? "0 0" : "100% 0";
+		const box = el.getBoundingClientRect();
+		el.style.transformOrigin = origin;
+		creakSound();
+
+		if (reduce) await wait(CREAK_MS);
+		else {
+			await el.animate(
+				CREAK.map((deg) => ({ rotate: `${deg * dir}deg`, easing: "cubic-bezier(0.3, 0, 0.3, 1)" })),
+				{ duration: CREAK_MS, fill: "forwards" },
+			).finished;
+		}
+
+		const ghost = el.cloneNode(true) as HTMLElement;
+		ghost.setAttribute("aria-hidden", "true");
+		ghost.inert = true;
+		Object.assign(ghost.style, {
+			position: "fixed",
+			zIndex: "20",
+			top: `${box.top}px`,
+			left: `${box.left}px`,
+			width: `${box.width}px`,
+			height: `${box.height}px`,
+			margin: "0",
+			boxSizing: "border-box",
+			transformOrigin: origin,
+			pointerEvents: "none",
+		});
+		if (el.contains(document.activeElement)) document.querySelector<HTMLElement>(".logo")?.focus();
+		el.getAnimations().forEach((a) => {
+			a.cancel();
+		});
+		el.style.visibility = "hidden";
+		document.body.append(ghost);
+		say(`The ${el.dataset.name} fell off the page.`, false);
+
+		const frames = reduce
+			? [{ opacity: 1 }, { opacity: 0 }]
+			: [
+					{ rotate: `${14 * dir}deg`, translate: "0 0" },
+					{ rotate: `${70 * dir}deg`, translate: `${30 * dir}px 110vh` },
+				];
+		await ghost.animate(frames, {
+			duration: reduce ? 400 : 900,
+			easing: "cubic-bezier(0.5, 0, 1, 0.5)",
+			fill: "forwards",
+		}).finished;
+		ghost.remove();
+	}
+
+	for (const el of document.querySelectorAll<HTMLElement>("[data-flimsy]")) {
+		el.addEventListener("click", () => fallOff(el));
+		el.addEventListener("submit", (e) => {
+			e.preventDefault();
+			fallOff(el);
+		});
+	}
+
+	closeX.addEventListener("pointerenter", (e) => {
+		if (e.pointerType !== "mouse" || dodges >= DODGES.length) return;
+		closeX.classList.remove(...DODGES);
+		closeX.classList.add(DODGES[dodges] ?? "");
+		dodges++;
+		if (dodges === DODGES.length) dialog.classList.add("is-resigned");
 	});
-	if (el.contains(document.activeElement)) document.querySelector<HTMLElement>(".logo")?.focus();
-	el.getAnimations().forEach((a) => {
-		a.cancel();
-	});
-	el.style.visibility = "hidden";
-	document.body.append(ghost);
-	say(`The ${el.dataset.name} fell off the page.`, false);
 
-	const frames = reduce
-		? [{ opacity: 1 }, { opacity: 0 }]
-		: [
-				{ rotate: `${14 * dir}deg`, translate: "0 0" },
-				{ rotate: `${70 * dir}deg`, translate: `${30 * dir}px 110vh` },
-			];
-	await ghost.animate(frames, {
-		duration: reduce ? 400 : 900,
-		easing: "cubic-bezier(0.5, 0, 1, 0.5)",
-		fill: "forwards",
-	}).finished;
-	ghost.remove();
-}
+	function open() {
+		markSeen();
+		if (!dialog?.open) dialog?.showModal();
+		spinButton?.focus();
+	}
 
-for (const el of document.querySelectorAll<HTMLElement>("[data-flimsy]")) {
-	el.addEventListener("click", () => fallOff(el));
-	el.addEventListener("submit", (e) => {
-		e.preventDefault();
-		fallOff(el);
-	});
-}
-
-closeX.addEventListener("pointerenter", (e) => {
-	if (e.pointerType !== "mouse" || dodges >= DODGES.length) return;
-	closeX.classList.remove(...DODGES);
-	closeX.classList.add(DODGES[dodges] ?? "");
-	dodges++;
-	if (dodges === DODGES.length) dialog.classList.add("is-resigned");
-});
-
-function open() {
-	markSeen();
-	if (!dialog?.open) dialog?.showModal();
-	spinButton?.focus();
-}
-
-const jump = import.meta.env.DEV ? new URLSearchParams(location.search).get("jump") : null;
-if (jump === "shop" || (jump !== "wheel" && seenWheel())) startCoupon();
-else setTimeout(open, jump === "wheel" ? 0 : 1500);
+	const jump = import.meta.env.DEV ? new URLSearchParams(location.search).get("jump") : null;
+	if (jump === "shop" || (jump !== "wheel" && seenWheel())) startCoupon();
+	else setTimeout(open, jump === "wheel" ? 0 : 1500);
 </script>
 
 <style>
-:root {
-	--orange: #e85d04;
-	--orange-soft: #fff1e6;
-	--blue: #1d4ed8;
-	--ink: #161616;
-	--pink: #ff2e93;
-	--gray: #6b6b6b;
-	--page: #f4f4f4;
-}
-body {
-	margin: 0;
-	min-block-size: 100dvh;
-	background: var(--page);
-	color: var(--ink);
-	font-family: var(--font-rubik), system-ui, sans-serif;
-}
-:global(html:has(.promo[open])) {
-	overflow: hidden;
-}
-.visually-hidden {
-	position: absolute;
-	inline-size: 1px;
-	block-size: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
+	:root {
+		--orange: #e85d04;
+		--orange-soft: #fff1e6;
+		--blue: #1d4ed8;
+		--ink: #161616;
+		--pink: #ff2e93;
+		--gray: #6b6b6b;
+		--page: #f4f4f4;
+	}
+	body {
+		margin: 0;
+		min-block-size: 100dvh;
+		background: var(--page);
+		color: var(--ink);
+		font-family: var(--font-rubik), system-ui, sans-serif;
+	}
+	:global(html:has(.promo[open])) {
+		overflow: hidden;
+	}
+	.visually-hidden {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
 
-/* Header */
-.top {
-	position: sticky;
-	top: 0;
-	z-index: 10;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.75rem 1rem;
-	padding: 0.75rem 1rem;
-	background: #fff;
-	border-block-end: 1px solid #e6e6e6;
-}
-.logo {
-	display: grid;
-	color: var(--orange);
-	font-weight: 900;
-	font-size: 1.75rem;
-	letter-spacing: -0.04em;
-	line-height: 1;
-	text-decoration: none;
-}
-.logo__tag {
-	color: var(--ink);
-	font-size: 0.7rem;
-	font-weight: 500;
-	letter-spacing: 0;
-}
-.search {
-	flex: 1 1 14rem;
-}
-.search form {
-	display: flex;
-	border: 2px solid var(--ink);
-	border-radius: 999px;
-	overflow: hidden;
-}
-.search input {
-	flex: 1;
-	min-inline-size: 0;
-	padding: 0.5rem 1rem;
-	border: 0;
-	font: inherit;
-}
-.search button {
-	padding: 0 1.1rem;
-	border: 0;
-	background: var(--ink);
-	color: #fff;
-	font: inherit;
-	font-weight: 700;
-}
-.cart {
-	padding: 0.25rem;
-	border: 0;
-	background: none;
-	color: inherit;
-	font: inherit;
-	font-weight: 600;
-	cursor: pointer;
-}
-.cart__count {
-	display: inline-grid;
-	place-items: center;
-	min-inline-size: 1.5em;
-	padding: 0.1em 0.35em;
-	border-radius: 999px;
-	background: var(--orange);
-	color: #fff;
-	font-size: 0.8em;
-	font-weight: 800;
-}
+	/* Header */
+	.top {
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem 1rem;
+		padding: 0.75rem 1rem;
+		background: #fff;
+		border-block-end: 1px solid #e6e6e6;
+	}
+	.logo {
+		display: grid;
+		color: var(--orange);
+		font-weight: 900;
+		font-size: 1.75rem;
+		letter-spacing: -0.04em;
+		line-height: 1;
+		text-decoration: none;
+	}
+	.logo__tag {
+		color: var(--ink);
+		font-size: 0.7rem;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+	.search {
+		flex: 1 1 14rem;
+	}
+	.search form {
+		display: flex;
+		border: 2px solid var(--ink);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.search input {
+		flex: 1;
+		min-inline-size: 0;
+		padding: 0.5rem 1rem;
+		border: 0;
+		font: inherit;
+	}
+	.search button {
+		padding: 0 1.1rem;
+		border: 0;
+		background: var(--ink);
+		color: #fff;
+		font: inherit;
+		font-weight: 700;
+	}
+	.cart {
+		padding: 0.25rem;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.cart__count {
+		display: inline-grid;
+		place-items: center;
+		min-inline-size: 1.5em;
+		padding: 0.1em 0.35em;
+		border-radius: 999px;
+		background: var(--orange);
+		color: #fff;
+		font-size: 0.8em;
+		font-weight: 800;
+	}
 
-.coupon {
-	flex: 1 0 100%;
-	margin: 0 -1rem -0.75rem;
-	padding: 0.5rem 1rem;
-	background: var(--ink);
-	color: #fff;
-	font-size: 0.875rem;
-	text-align: center;
-}
-.coupon__clock {
-	color: #ffd23f;
-	font-weight: 800;
-	font-variant-numeric: tabular-nums;
-}
+	.coupon {
+		flex: 1 0 100%;
+		margin: 0 -1rem -0.75rem;
+		padding: 0.5rem 1rem;
+		background: var(--ink);
+		color: #fff;
+		font-size: 0.875rem;
+		text-align: center;
+	}
+	.coupon__clock {
+		color: #ffd23f;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+	}
 
-/* Shop */
-.shop {
-	max-inline-size: 72rem;
-	margin-inline: auto;
-	padding: 1rem 1rem 5rem;
-}
-.chips {
-	display: flex;
-	gap: 0.5rem;
-	margin: 0 0 1rem;
-	padding: 0;
-	overflow-x: auto;
-	list-style: none;
-}
-.chips li {
-	flex: none;
-	padding: 0.35rem 0.85rem;
-	border-radius: 999px;
-	background: #fff;
-	font-size: 0.875rem;
-	font-weight: 500;
-}
-.chips .is-on {
-	background: var(--ink);
-	color: #fff;
-}
-.grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.75rem;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-@media (width >= 48rem) {
+	/* Shop */
+	.shop {
+		max-inline-size: 72rem;
+		margin-inline: auto;
+		padding: 1rem 1rem 5rem;
+	}
+	.chips {
+		display: flex;
+		gap: 0.5rem;
+		margin: 0 0 1rem;
+		padding: 0;
+		overflow-x: auto;
+		list-style: none;
+	}
+	.chips li {
+		flex: none;
+		padding: 0.35rem 0.85rem;
+		border-radius: 999px;
+		background: #fff;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+	.chips .is-on {
+		background: var(--ink);
+		color: #fff;
+	}
 	.grid {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
-}
-.card {
-	display: grid;
-	align-content: start;
-	gap: 0.35rem;
-	padding-block-end: 0.75rem;
-	border-radius: 0.5rem;
-	background: #fff;
-	overflow: hidden;
-}
-.card > p {
-	margin: 0;
-	padding-inline: 0.6rem;
-}
-.card__photo,
-.review__photo {
-	position: relative;
-	aspect-ratio: 1;
-	overflow: hidden;
-	background: #e4e4e4;
-}
-.shot {
-	display: block;
-	inline-size: 100%;
-	block-size: 100%;
-	object-fit: cover;
-}
-.fx-stretch .shot {
-	scale: 1.5 1;
-}
-.led {
-	position: absolute;
-	inline-size: 18%;
-	aspect-ratio: 1;
-	translate: -50% -50%;
-	border-radius: 50%;
-	background: radial-gradient(circle, #fff 0 18%, #3ff0ff 30%, rgb(63 240 255 / 0) 70%);
-	animation: led 2.4s ease-in-out infinite alternate;
-}
-.led + .led {
-	background: radial-gradient(circle, #fff 0 18%, #ff2e93 30%, rgb(255 46 147 / 0) 70%);
-}
-@keyframes led {
-	to {
-		opacity: 0.55;
+	@media (width >= 48rem) {
+		.grid {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
 	}
-}
-.watermark {
-	position: absolute;
-	inset: 50% -20% auto;
-	rotate: -28deg;
-	color: rgb(255 255 255 / 0.55);
-	font-size: 0.9rem;
-	font-weight: 800;
-	text-align: center;
-	text-shadow: 0 0 2px rgb(0 0 0 / 0.35);
-	white-space: nowrap;
-	pointer-events: none;
-}
-.sticker {
-	position: absolute;
-	inset: auto 6% 8% auto;
-	display: grid;
-	place-items: center;
-	inline-size: 38%;
-	aspect-ratio: 1;
-	padding: 6%;
-	background: #ffd23f;
-	color: var(--ink);
-	font-size: clamp(0.55rem, 2.6vw, 0.8rem);
-	font-weight: 900;
-	line-height: 1;
-	text-align: center;
-	rotate: 12deg;
-	clip-path: polygon(
-		50% 0,
-		61% 15%,
-		79% 9%,
-		81% 27%,
-		98% 33%,
-		88% 50%,
-		98% 67%,
-		81% 73%,
-		79% 91%,
-		61% 85%,
-		50% 100%,
-		39% 85%,
-		21% 91%,
-		19% 73%,
-		2% 67%,
-		12% 50%,
-		2% 33%,
-		19% 27%,
-		21% 9%,
-		39% 15%
-	);
-}
-.perks {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.25rem 1rem;
-	margin: 0 0 1rem;
-	padding: 0.6rem 0.9rem;
-	border-radius: 0.5rem;
-	background: var(--orange-soft);
-	font-size: 0.85rem;
-}
-.perks strong {
-	color: var(--orange);
-}
-.perks small {
-	color: var(--gray);
-	font-size: 0.7rem;
-}
-.card__viewers {
-	position: relative;
-}
-.viewers {
-	padding: 0;
-	border: 0;
-	background: none;
-	color: var(--blue);
-	font: inherit;
-	font-size: 0.75rem;
-	font-weight: 600;
-	text-decoration: underline dotted;
-	cursor: help;
-}
-.viewers__count {
-	font-variant-numeric: tabular-nums;
-}
-.viewers__tip {
-	position: absolute;
-	inset: auto auto calc(100% + 0.3rem) 0.4rem;
-	z-index: 5;
-	padding: 0.35rem 0.5rem;
-	border-radius: 0.3rem;
-	background: var(--ink);
-	color: #ffd23f;
-	font-size: 0.7rem;
-	white-space: nowrap;
-	visibility: hidden;
-}
-.card__viewers:hover .viewers__tip,
-.viewers:is(:focus-visible, .is-showing) + .viewers__tip {
-	visibility: visible;
-}
-.viewers.is-dismissed + .viewers__tip {
-	visibility: hidden;
-}
-.verified {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.2rem;
-	margin-inline-start: 0.4rem;
-	padding: 0 0.5rem;
-	border: 2px solid currentColor;
-	border-radius: 48% 52% 45% 55% / 60% 50% 50% 40%;
-	color: #2f6fe0;
-	font-family: var(--font-schoolbell), cursive;
-	font-size: 1.05rem;
-	rotate: -4deg;
-	filter: url(#crayon);
-}
-.verified svg {
-	inline-size: 1em;
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 3;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-}
-.defs {
-	position: absolute;
-	inline-size: 0;
-	block-size: 0;
-}
-.inspect {
-	display: block;
-	inline-size: 100%;
-	block-size: 100%;
-	padding: 0;
-	border: 0;
-	background: none;
-	cursor: zoom-in;
-}
-.inspect:focus-visible {
-	outline: 3px solid var(--blue);
-	outline-offset: -3px;
-}
-.stamp {
-	position: absolute;
-	inset: 50% auto auto 50%;
-	padding: 0.3rem 0.6rem;
-	border: 3px double var(--blue);
-	border-radius: 0.3rem;
-	background: rgb(255 255 255 / 0.82);
-	color: var(--blue);
-	font-size: clamp(0.8rem, 3.6vw, 1.15rem);
-	font-weight: 900;
-	letter-spacing: 0.08em;
-	translate: -50% -50%;
-	rotate: -14deg;
-	visibility: hidden;
-	pointer-events: none;
-}
-.is-fake .stamp {
-	visibility: visible;
-	animation: stamp 0.32s cubic-bezier(0.3, 1.5, 0.5, 1);
-}
-.is-fake .shot {
-	filter: saturate(0.55);
-}
-@keyframes stamp {
-	from {
-		scale: 2.4;
+	.card {
+		display: grid;
+		align-content: start;
+		gap: 0.35rem;
+		padding-block-end: 0.75rem;
+		border-radius: 0.5rem;
+		background: #fff;
+		overflow: hidden;
+	}
+	.card > p {
+		margin: 0;
+		padding-inline: 0.6rem;
+	}
+	.card__photo,
+	.review__photo {
+		position: relative;
+		aspect-ratio: 1;
+		overflow: hidden;
+		background: #e4e4e4;
+	}
+	.shot {
+		display: block;
+		inline-size: 100%;
+		block-size: 100%;
+		object-fit: cover;
+	}
+	.fx-stretch .shot {
+		scale: 1.5 1;
+	}
+	.led {
+		position: absolute;
+		inline-size: 18%;
+		aspect-ratio: 1;
+		translate: -50% -50%;
+		border-radius: 50%;
+		background: radial-gradient(circle, #fff 0 18%, #3ff0ff 30%, rgb(63 240 255 / 0) 70%);
+		animation: led 2.4s ease-in-out infinite alternate;
+	}
+	.led + .led {
+		background: radial-gradient(circle, #fff 0 18%, #ff2e93 30%, rgb(255 46 147 / 0) 70%);
+	}
+	@keyframes led {
+		to {
+			opacity: 0.55;
+		}
+	}
+	.watermark {
+		position: absolute;
+		inset: 50% -20% auto;
+		rotate: -28deg;
+		color: rgb(255 255 255 / 0.55);
+		font-size: 0.9rem;
+		font-weight: 800;
+		text-align: center;
+		text-shadow: 0 0 2px rgb(0 0 0 / 0.35);
+		white-space: nowrap;
+		pointer-events: none;
+	}
+	.sticker {
+		position: absolute;
+		inset: auto 6% 8% auto;
+		display: grid;
+		place-items: center;
+		inline-size: 38%;
+		aspect-ratio: 1;
+		padding: 6%;
+		background: #ffd23f;
+		color: var(--ink);
+		font-size: clamp(0.55rem, 2.6vw, 0.8rem);
+		font-weight: 900;
+		line-height: 1;
+		text-align: center;
+		rotate: 12deg;
+		clip-path: polygon(
+			50% 0,
+			61% 15%,
+			79% 9%,
+			81% 27%,
+			98% 33%,
+			88% 50%,
+			98% 67%,
+			81% 73%,
+			79% 91%,
+			61% 85%,
+			50% 100%,
+			39% 85%,
+			21% 91%,
+			19% 73%,
+			2% 67%,
+			12% 50%,
+			2% 33%,
+			19% 27%,
+			21% 9%,
+			39% 15%
+		);
+	}
+	.perks {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.25rem 1rem;
+		margin: 0 0 1rem;
+		padding: 0.6rem 0.9rem;
+		border-radius: 0.5rem;
+		background: var(--orange-soft);
+		font-size: 0.85rem;
+	}
+	.perks strong {
+		color: var(--orange);
+	}
+	.perks small {
+		color: var(--gray);
+		font-size: 0.7rem;
+	}
+	.card__viewers {
+		position: relative;
+	}
+	.viewers {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--blue);
+		font: inherit;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-decoration: underline dotted;
+		cursor: help;
+	}
+	.viewers__count {
+		font-variant-numeric: tabular-nums;
+	}
+	.viewers__tip {
+		position: absolute;
+		inset: auto auto calc(100% + 0.3rem) 0.4rem;
+		z-index: 5;
+		padding: 0.35rem 0.5rem;
+		border-radius: 0.3rem;
+		background: var(--ink);
+		color: #ffd23f;
+		font-size: 0.7rem;
+		white-space: nowrap;
+		visibility: hidden;
+	}
+	.card__viewers:hover .viewers__tip,
+	.viewers:is(:focus-visible, .is-showing) + .viewers__tip {
+		visibility: visible;
+	}
+	.viewers.is-dismissed + .viewers__tip {
+		visibility: hidden;
+	}
+	.verified {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		margin-inline-start: 0.4rem;
+		padding: 0 0.5rem;
+		border: 2px solid currentColor;
+		border-radius: 48% 52% 45% 55% / 60% 50% 50% 40%;
+		color: #2f6fe0;
+		font-family: var(--font-schoolbell), cursive;
+		font-size: 1.05rem;
+		rotate: -4deg;
+		filter: url(#crayon);
+	}
+	.verified svg {
+		inline-size: 1em;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.defs {
+		position: absolute;
+		inline-size: 0;
+		block-size: 0;
+	}
+	.inspect {
+		display: block;
+		inline-size: 100%;
+		block-size: 100%;
+		padding: 0;
+		border: 0;
+		background: none;
+		cursor: zoom-in;
+	}
+	.inspect:focus-visible {
+		outline: 3px solid var(--blue);
+		outline-offset: -3px;
+	}
+	.stamp {
+		position: absolute;
+		inset: 50% auto auto 50%;
+		padding: 0.3rem 0.6rem;
+		border: 3px double var(--blue);
+		border-radius: 0.3rem;
+		background: rgb(255 255 255 / 0.82);
+		color: var(--blue);
+		font-size: clamp(0.8rem, 3.6vw, 1.15rem);
+		font-weight: 900;
+		letter-spacing: 0.08em;
+		translate: -50% -50%;
+		rotate: -14deg;
+		visibility: hidden;
+		pointer-events: none;
+	}
+	.is-fake .stamp {
+		visibility: visible;
+		animation: stamp 0.32s cubic-bezier(0.3, 1.5, 0.5, 1);
+	}
+	.is-fake .shot {
+		filter: saturate(0.55);
+	}
+	@keyframes stamp {
+		from {
+			scale: 2.4;
+			opacity: 0;
+		}
+	}
+	.toast {
+		position: fixed;
+		inset: auto 1rem 3rem;
+		z-index: 30;
+		max-inline-size: 28rem;
+		margin: 0 auto;
+		padding: 0.75rem 1rem;
+		border-radius: 0.75rem;
+		background: var(--ink);
+		color: #fff;
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: center;
+		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+	}
+	.toast[hidden] {
+		display: none;
+	}
+	.badge {
+		position: absolute;
+		inset: 0.5rem auto auto 0.5rem;
+		padding: 0.15rem 0.45rem;
+		border-radius: 0.25rem;
+		color: #fff;
+		font-size: 0.7rem;
+		font-weight: 700;
+	}
+	.badge--orange {
+		background: var(--orange);
+	}
+	.badge--blue {
+		background: var(--blue);
+	}
+	.badge--ink {
+		background: var(--ink);
+	}
+	.card__title {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		font-size: 0.85rem;
+		line-height: 1.3;
+	}
+	.card__price {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.35rem;
+	}
+	.card__price strong {
+		color: var(--orange);
+		font-size: 1.25rem;
+		font-weight: 800;
+	}
+	.card__price s {
+		color: var(--gray);
+		font-size: 0.8rem;
+	}
+	.off {
+		padding: 0 0.3rem;
+		border: 1px solid var(--orange);
+		border-radius: 0.2rem;
+		color: var(--orange);
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+	.card__meta {
+		color: var(--gray);
+		font-size: 0.75rem;
+	}
+
+	.reviews {
+		margin-block-start: 2rem;
+		max-inline-size: 32rem;
+	}
+	.reviews h2 {
+		font-size: 1.1rem;
+	}
+	.review {
+		padding: 1rem;
+		border-radius: 0.5rem;
+		background: #fff;
+	}
+	.review p {
+		margin-block: 0 0.75rem;
+	}
+	.review__head {
+		color: var(--orange);
+	}
+	.review__head strong {
+		color: var(--ink);
+	}
+	.review__photo {
+		inline-size: 12rem;
+	}
+
+	/* The prize wheel */
+	.promo {
+		box-sizing: border-box;
+		position: fixed;
+		inline-size: min(26rem, calc(100vw - 2rem));
+		max-block-size: calc(100dvh - 2rem);
+		padding: 1.75rem 1.25rem 1.25rem;
+		overflow: hidden auto;
+		border: 0;
+		border-radius: 1.25rem;
+		background: radial-gradient(circle at 50% 0, #fff 40%, var(--orange-soft));
+		color: var(--ink);
+		text-align: center;
+		box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.45);
+	}
+	.promo::backdrop {
+		background: rgb(10 10 10 / 0.7);
+	}
+	.promo__step {
+		display: grid;
+		justify-items: center;
+		gap: 0.5rem;
+	}
+	.promo__step[hidden] {
+		display: none;
+	}
+	.promo__kicker {
+		margin: 0;
+		color: var(--pink);
+		font-weight: 900;
+		font-size: 0.9rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.promo__title {
+		margin: 0;
+		font-size: 1.9rem;
+		font-weight: 900;
+		line-height: 1;
+	}
+	.promo__title em {
+		color: var(--orange);
+		font-style: normal;
+	}
+	.promo__sub {
+		margin: 0;
+		font-size: 0.95rem;
+	}
+	.promo__result {
+		min-block-size: 1.4em;
+		margin: 0;
+		font-weight: 800;
+		font-size: 1.1rem;
+	}
+	.promo__fine {
+		margin: 0.25rem 0 0;
+		color: var(--gray);
+		font-size: 0.7rem;
+	}
+
+	.promo__spin,
+	.promo__keep,
+	.promo__claim {
+		inline-size: 100%;
+		padding: 0.9rem 1rem 0.6rem;
+		border: 0;
+		border-block-end: 0.3rem solid #a33f00;
+		border-radius: 999px;
+		background: var(--orange);
+		color: #fff;
+		font: inherit;
+		font-size: 1.2rem;
+		font-weight: 900;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		animation: throb 1.2s ease-in-out infinite;
+	}
+	.promo__spin:focus-visible,
+	.promo__keep:focus-visible,
+	.promo__claim:focus-visible {
+		outline: 2px solid transparent;
+		box-shadow:
+			0 0 0 3px #fff,
+			0 0 0 6px var(--blue);
+	}
+	.promo__spin:disabled {
+		background: #b9b9b9;
+		border-block-end-color: #8a8a8a;
+		animation: none;
+		cursor: progress;
+	}
+	@keyframes throb {
+		50% {
+			scale: 1.04;
+		}
+	}
+	.promo__leave {
+		padding: 0.5rem;
+		border: 0;
+		background: none;
+		color: var(--gray);
+		font: inherit;
+		font-size: 0.75rem;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.promo__x {
+		position: absolute;
+		inset: 0.4rem 0.4rem auto auto;
+		z-index: 2;
+		inline-size: 1.6rem;
+		block-size: 1.6rem;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: none;
+		color: #8a8a8a;
+		font: inherit;
+		font-size: 1.1rem;
+		line-height: 1;
+		cursor: pointer;
+		transition:
+			inset 0.15s,
+			translate 0.15s;
+	}
+	.promo__x.is-tl {
+		inset: 0.4rem auto auto 0.4rem;
+	}
+	.promo__x.is-bl {
+		inset: auto auto 0.4rem 0.4rem;
+	}
+	.promo__x.is-br {
+		inset: auto 0.4rem 0.4rem auto;
+	}
+	.promo__fine-x {
+		position: absolute;
+		inset: auto 2.2rem 0.75rem auto;
+		color: var(--gray);
+		font-size: 0.65rem;
 		opacity: 0;
 	}
-}
-.toast {
-	position: fixed;
-	inset: auto 1rem 3rem;
-	z-index: 30;
-	max-inline-size: 28rem;
-	margin: 0 auto;
-	padding: 0.75rem 1rem;
-	border-radius: 0.75rem;
-	background: var(--ink);
-	color: #fff;
-	font-size: 0.9rem;
-	font-weight: 600;
-	text-align: center;
-	box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
-}
-.toast[hidden] {
-	display: none;
-}
-.badge {
-	position: absolute;
-	inset: 0.5rem auto auto 0.5rem;
-	padding: 0.15rem 0.45rem;
-	border-radius: 0.25rem;
-	color: #fff;
-	font-size: 0.7rem;
-	font-weight: 700;
-}
-.badge--orange {
-	background: var(--orange);
-}
-.badge--blue {
-	background: var(--blue);
-}
-.badge--ink {
-	background: var(--ink);
-}
-.card__title {
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-	font-size: 0.85rem;
-	line-height: 1.3;
-}
-.card__price {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.35rem;
-}
-.card__price strong {
-	color: var(--orange);
-	font-size: 1.25rem;
-	font-weight: 800;
-}
-.card__price s {
-	color: var(--gray);
-	font-size: 0.8rem;
-}
-.off {
-	padding: 0 0.3rem;
-	border: 1px solid var(--orange);
-	border-radius: 0.2rem;
-	color: var(--orange);
-	font-size: 0.75rem;
-	font-weight: 700;
-}
-.card__meta {
-	color: var(--gray);
-	font-size: 0.75rem;
-}
-
-.reviews {
-	margin-block-start: 2rem;
-	max-inline-size: 32rem;
-}
-.reviews h2 {
-	font-size: 1.1rem;
-}
-.review {
-	padding: 1rem;
-	border-radius: 0.5rem;
-	background: #fff;
-}
-.review p {
-	margin-block: 0 0.75rem;
-}
-.review__head {
-	color: var(--orange);
-}
-.review__head strong {
-	color: var(--ink);
-}
-.review__photo {
-	inline-size: 12rem;
-}
-
-/* The prize wheel */
-.promo {
-	box-sizing: border-box;
-	position: fixed;
-	inline-size: min(26rem, calc(100vw - 2rem));
-	max-block-size: calc(100dvh - 2rem);
-	padding: 1.75rem 1.25rem 1.25rem;
-	overflow: hidden auto;
-	border: 0;
-	border-radius: 1.25rem;
-	background: radial-gradient(circle at 50% 0, #fff 40%, var(--orange-soft));
-	color: var(--ink);
-	text-align: center;
-	box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.45);
-}
-.promo::backdrop {
-	background: rgb(10 10 10 / 0.7);
-}
-.promo__step {
-	display: grid;
-	justify-items: center;
-	gap: 0.5rem;
-}
-.promo__step[hidden] {
-	display: none;
-}
-.promo__kicker {
-	margin: 0;
-	color: var(--pink);
-	font-weight: 900;
-	font-size: 0.9rem;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-.promo__title {
-	margin: 0;
-	font-size: 1.9rem;
-	font-weight: 900;
-	line-height: 1;
-}
-.promo__title em {
-	color: var(--orange);
-	font-style: normal;
-}
-.promo__sub {
-	margin: 0;
-	font-size: 0.95rem;
-}
-.promo__result {
-	min-block-size: 1.4em;
-	margin: 0;
-	font-weight: 800;
-	font-size: 1.1rem;
-}
-.promo__fine {
-	margin: 0.25rem 0 0;
-	color: var(--gray);
-	font-size: 0.7rem;
-}
-
-.promo__spin,
-.promo__keep,
-.promo__claim {
-	inline-size: 100%;
-	padding: 0.9rem 1rem 0.6rem;
-	border: 0;
-	border-block-end: 0.3rem solid #a33f00;
-	border-radius: 999px;
-	background: var(--orange);
-	color: #fff;
-	font: inherit;
-	font-size: 1.2rem;
-	font-weight: 900;
-	letter-spacing: 0.04em;
-	cursor: pointer;
-	animation: throb 1.2s ease-in-out infinite;
-}
-.promo__spin:focus-visible,
-.promo__keep:focus-visible,
-.promo__claim:focus-visible {
-	outline: 2px solid transparent;
-	box-shadow:
-		0 0 0 3px #fff,
-		0 0 0 6px var(--blue);
-}
-.promo__spin:disabled {
-	background: #b9b9b9;
-	border-block-end-color: #8a8a8a;
-	animation: none;
-	cursor: progress;
-}
-@keyframes throb {
-	50% {
-		scale: 1.04;
+	.promo.is-resigned .promo__fine-x {
+		opacity: 1;
+		transition: opacity 0.3s 0.3s;
 	}
-}
-.promo__leave {
-	padding: 0.5rem;
-	border: 0;
-	background: none;
-	color: var(--gray);
-	font: inherit;
-	font-size: 0.75rem;
-	text-decoration: underline;
-	cursor: pointer;
-}
 
-.promo__x {
-	position: absolute;
-	inset: 0.4rem 0.4rem auto auto;
-	z-index: 2;
-	inline-size: 1.6rem;
-	block-size: 1.6rem;
-	padding: 0;
-	border: 0;
-	border-radius: 50%;
-	background: none;
-	color: #8a8a8a;
-	font: inherit;
-	font-size: 1.1rem;
-	line-height: 1;
-	cursor: pointer;
-	transition:
-		inset 0.15s,
-		translate 0.15s;
-}
-.promo__x.is-tl {
-	inset: 0.4rem auto auto 0.4rem;
-}
-.promo__x.is-bl {
-	inset: auto auto 0.4rem 0.4rem;
-}
-.promo__x.is-br {
-	inset: auto 0.4rem 0.4rem auto;
-}
-.promo__fine-x {
-	position: absolute;
-	inset: auto 2.2rem 0.75rem auto;
-	color: var(--gray);
-	font-size: 0.65rem;
-	opacity: 0;
-}
-.promo.is-resigned .promo__fine-x {
-	opacity: 1;
-	transition: opacity 0.3s 0.3s;
-}
-
-.wheel {
-	position: relative;
-	inline-size: min(17rem, 70vw);
-	margin-block: 0.5rem;
-}
-.wheel__pointer {
-	position: absolute;
-	inset: -0.6rem auto auto 50%;
-	z-index: 1;
-	inline-size: 1.6rem;
-	translate: -50% 0;
-	fill: var(--ink);
-	filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.35));
-}
-.wheel__disc {
-	display: block;
-	inline-size: 100%;
-	block-size: auto;
-	overflow: visible;
-}
-.wheel__rim {
-	fill: var(--ink);
-}
-.wedge {
-	stroke: var(--ink);
-	stroke-width: 1;
-}
-.wedge--orange {
-	fill: var(--orange);
-}
-.wedge--cream {
-	fill: #fff6ec;
-}
-.wedge--ink {
-	fill: #2a2a2a;
-}
-.wedge__label {
-	font-size: 9px;
-	font-weight: 900;
-	letter-spacing: 0.02em;
-}
-.wedge__label--orange {
-	fill: #fff;
-}
-.wedge__label--cream {
-	fill: var(--ink);
-}
-.wedge__label--ink {
-	fill: #ffd23f;
-}
-.bulb {
-	fill: #fff6c2;
-}
-.bulb--1 {
-	animation: blink 1.6s steps(1) infinite;
-}
-@keyframes blink {
-	50% {
-		fill: #6b5d2a;
+	.wheel {
+		position: relative;
+		inline-size: min(17rem, 70vw);
+		margin-block: 0.5rem;
 	}
-}
-.wheel__hub {
-	fill: var(--ink);
-	stroke: #ffd23f;
-	stroke-width: 2;
-}
-.wheel__hub-label {
-	fill: var(--orange);
-	font-size: 6.5px;
-	font-weight: 900;
-}
-
-:global(.confetti) {
-	position: absolute;
-	top: 0;
-	z-index: 3;
-	inline-size: 0.5rem;
-	block-size: 0.8rem;
-	pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		animation: none !important;
-		transition: none !important;
+	.wheel__pointer {
+		position: absolute;
+		inset: -0.6rem auto auto 50%;
+		z-index: 1;
+		inline-size: 1.6rem;
+		translate: -50% 0;
+		fill: var(--ink);
+		filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.35));
 	}
-}
+	.wheel__disc {
+		display: block;
+		inline-size: 100%;
+		block-size: auto;
+		overflow: visible;
+	}
+	.wheel__rim {
+		fill: var(--ink);
+	}
+	.wedge {
+		stroke: var(--ink);
+		stroke-width: 1;
+	}
+	.wedge--orange {
+		fill: var(--orange);
+	}
+	.wedge--cream {
+		fill: #fff6ec;
+	}
+	.wedge--ink {
+		fill: #2a2a2a;
+	}
+	.wedge__label {
+		font-size: 9px;
+		font-weight: 900;
+		letter-spacing: 0.02em;
+	}
+	.wedge__label--orange {
+		fill: #fff;
+	}
+	.wedge__label--cream {
+		fill: var(--ink);
+	}
+	.wedge__label--ink {
+		fill: #ffd23f;
+	}
+	.bulb {
+		fill: #fff6c2;
+	}
+	.bulb--1 {
+		animation: blink 1.6s steps(1) infinite;
+	}
+	@keyframes blink {
+		50% {
+			fill: #6b5d2a;
+		}
+	}
+	.wheel__hub {
+		fill: var(--ink);
+		stroke: #ffd23f;
+		stroke-width: 2;
+	}
+	.wheel__hub-label {
+		fill: var(--orange);
+		font-size: 6.5px;
+		font-weight: 900;
+	}
+
+	:global(.confetti) {
+		position: absolute;
+		top: 0;
+		z-index: 3;
+		inline-size: 0.5rem;
+		block-size: 0.8rem;
+		pointer-events: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
 </style>

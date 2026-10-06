@@ -97,20 +97,20 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 </html>
 
 <style is:global>
-/* :where() keeps specificity at zero, so any page can restyle or hide the nav. */
-:where(.wwo-nav) {
-	position: fixed;
-	inset: auto 0.75rem 0.75rem auto;
-	z-index: 2147483000;
-	display: flex;
-	gap: 0.75rem;
-	font:
-		12px / 1.2 ui-monospace,
-		monospace;
-	color: #fff;
-	mix-blend-mode: difference;
-}
-:where(.wwo-nav a) {
-	color: inherit;
-}
+	/* :where() keeps specificity at zero, so any page can restyle or hide the nav. */
+	:where(.wwo-nav) {
+		position: fixed;
+		inset: auto 0.75rem 0.75rem auto;
+		z-index: 2147483000;
+		display: flex;
+		gap: 0.75rem;
+		font:
+			12px / 1.2 ui-monospace,
+			monospace;
+		color: #fff;
+		mix-blend-mode: difference;
+	}
+	:where(.wwo-nav a) {
+		color: inherit;
+	}
 </style>
