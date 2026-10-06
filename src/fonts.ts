@@ -34,7 +34,6 @@ export const FONTS: FontFamily[] = [
 	{ name: "Instrument Sans", weights: ["400 700"] },
 	{ name: "Fredoka", weights: ["300 700"] },
 	{ name: "Barlow Condensed", weights: [500, 700] },
-	{ name: "Share Tech Mono" },
 	{ name: "Kalam", weights: [400, 700] },
 	{ name: "Permanent Marker" },
 	{ name: "IBM Plex Mono", weights: [400, 500] },

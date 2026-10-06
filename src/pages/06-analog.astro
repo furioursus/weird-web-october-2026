@@ -137,7 +137,7 @@ const METER_ARC = `M${arcStart[0]} ${arcStart[1]}A60 60 0 0 1 ${arcEnd[0]} ${arc
 <Day
 	day={6}
 	description="Scope: a 1970s bench oscilloscope with chunky knobs. Twist them to draw glowing Lissajous figures, and if you see ears, keep turning."
-	fonts={["Barlow Condensed", "Share Tech Mono", "Schoolbell"]}
+	fonts={["Barlow Condensed"]}
 >
 	<main class="bench">
 		<article class="scope" aria-labelledby="scope-title">
@@ -145,10 +145,6 @@ const METER_ARC = `M${arcStart[0]} ${arcStart[1]}A60 60 0 0 1 ${arcEnd[0]} ${arc
 				<p class="maker">Phosphor &amp; Sons</p>
 				<h1 id="scope-title">Model 6 X–Y Scope</h1>
 			</header>
-
-			<p class="tape" aria-hidden="true">
-				CH 2 picks up something with ears. Keep turning.&nbsp;—R.
-			</p>
 
 			<div class="bezel">
 				<div class="screen">
@@ -197,6 +193,10 @@ const METER_ARC = `M${arcStart[0]} ${arcStart[1]}A60 60 0 0 1 ${arcEnd[0]} ${arc
 				</div>
 			</div>
 
+			<p class="visually-hidden">
+				Someone has circled three settings on the dials in grease pencil: channel 1 frequency at 2,
+				channel 2 frequency at 3, and phase at 90°.
+			</p>
 			<div class="controls">
 				{GROUPS.map((group) => (
 	<fieldset class="group">
@@ -287,36 +287,18 @@ const METER_ARC = `M${arcStart[0]} ${arcStart[1]}A60 60 0 0 1 ${arcEnd[0]} ${arc
 							</div>
 							<span class="legend">{PHASE.label}</span>
 						</div>
-						<div class="control control--toggle">
-							<button type="button" class="toggle" aria-pressed="false" aria-label="Sound">
-								<span class="toggle__bat" />
-							</button>
+						<div class="control control--plunger">
+							<div class="dial">
+								<button type="button" class="plunger" aria-pressed="false" aria-label="Sound">
+									<span class="plunger__cap" />
+								</button>
+							</div>
 							<span class="legend">Sound</span>
 						</div>
 					</div>
 				</fieldset>
 			</div>
 		</article>
-
-		<aside class="log" aria-labelledby="log-title">
-			<h2 id="log-title">Service log · Model 6, serial 0451</h2>
-			<ol>
-				<li><time>9/12</time> Replaced the fuse. Smells better now.&nbsp;—J.</li>
-				<li>
-					<time>9/20</time>
-					Trace wobbles when the fridge kicks on. Not a scope problem.&nbsp;—J.
-				</li>
-				<li>
-					<time>9/28</time>
-					CH 1 doubled, CH 2 tripled, phase left at a quarter turn. Saw ears?? Lamp lit.&nbsp;—R.
-				</li>
-				<li><time>9/29</time> Could not reproduce. R. needs sleep.&nbsp;—J.</li>
-				<li>
-					<time>10/1</time>
-					Circled R.’s settings on the dials in grease pencil. Humor him.&nbsp;—J.
-				</li>
-			</ol>
-		</aside>
 	</main>
 </Day>
 
@@ -487,9 +469,9 @@ const catSpot = document.querySelector<HTMLElement>(".cat-spot");
 const needle = document.querySelector<SVGGElement>(".meter__needle");
 const lamp = document.querySelector<HTMLElement>(".lamp");
 const status = document.querySelector<HTMLElement>(".trace-status");
-const toggle = document.querySelector<HTMLButtonElement>(".toggle");
+const plunger = document.querySelector<HTMLButtonElement>(".plunger");
 
-if (!scope || !canvas || !ctx || !catSpot || !needle || !lamp || !status || !toggle) {
+if (!scope || !canvas || !ctx || !catSpot || !needle || !lamp || !status || !plunger) {
 	throw new Error("Day 6's scope is missing a piece of its markup.");
 }
 
@@ -771,9 +753,9 @@ const click = () => {
 	src.start();
 };
 
-toggle.addEventListener("click", async () => {
+plunger.addEventListener("click", async () => {
 	soundOn = !soundOn;
-	toggle.setAttribute("aria-pressed", String(soundOn));
+	plunger.setAttribute("aria-pressed", String(soundOn));
 	if (soundOn) {
 		rig ??= buildRig();
 		await rig.ctx.resume();
@@ -1012,36 +994,6 @@ h1 {
 	color: #e9e3d6;
 }
 
-.tape {
-	position: absolute;
-	inset: -1.1rem 2rem auto auto;
-	z-index: 2;
-	max-inline-size: 15rem;
-	margin: 0;
-	padding: 0.5rem 1rem 0.6rem;
-	font-family: var(--font-schoolbell), cursive;
-	font-size: 1rem;
-	line-height: 1.25;
-	color: var(--marker);
-	background: #f1e6b8e6;
-	rotate: 2.5deg;
-	box-shadow: 0 2px 4px #0003;
-	clip-path: polygon(
-		0 6%,
-		3% 0,
-		8% 5%,
-		14% 1%,
-		100% 0,
-		98% 30%,
-		100% 55%,
-		97% 100%,
-		90% 95%,
-		84% 100%,
-		0 100%,
-		2% 60%
-	);
-}
-
 .bezel {
 	grid-area: screen;
 	align-self: start;
@@ -1276,48 +1228,6 @@ h1 {
 	inline-size: 2.4rem;
 }
 
-.log {
-	position: relative;
-	inline-size: min(38rem, 100%);
-	justify-self: start;
-	margin: -0.75rem 0 0 clamp(0px, 6vw, 5rem);
-	padding: 1rem 1.5rem 1.25rem 3rem;
-	box-sizing: border-box;
-	color: var(--marker);
-	background:
-		linear-gradient(90deg, #0000 2.25rem, #ff2e9366 2.25rem 2.35rem, #0000 2.35rem),
-		repeating-linear-gradient(#0000 0 1.7rem, #7d93c455 1.7rem calc(1.7rem + 1px)), #fbf8ee;
-	background-position:
-		0 0,
-		0 0.55rem,
-		0 0;
-	box-shadow: 0 10px 24px #2a071866;
-	rotate: -1.5deg;
-}
-.log h2 {
-	margin: 0 0 0.35rem;
-	font-family: var(--font-share-tech-mono), monospace;
-	font-weight: 400;
-	font-size: 0.85rem;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: var(--ink);
-}
-.log ol {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-	font-family: var(--font-schoolbell), cursive;
-	font-size: 1.05rem;
-	line-height: 1.7rem;
-}
-.log time {
-	margin-inline-end: 0.4rem;
-	font-family: var(--font-share-tech-mono), monospace;
-	font-size: 0.85rem;
-	color: var(--ink);
-}
-
 .legend {
 	font-weight: 700;
 	font-size: 0.8rem;
@@ -1384,38 +1294,73 @@ h1 {
 	rotate: var(--turn);
 }
 
-.control--toggle {
-	align-self: center;
-	padding-top: 0.5rem;
+.control--plunger {
+	--size: 2.8rem;
 }
-.toggle {
-	position: relative;
-	inline-size: 2.4rem;
-	block-size: 3.6rem;
+.plunger {
+	position: absolute;
+	inset: 0;
 	padding: 0;
 	border: 0;
 	border-radius: 50%;
 	cursor: pointer;
-	background: radial-gradient(circle, #d7d7d7 0 30%, #8d8d8d 32%, #555 60%, #2a2a2a);
-	box-shadow: 0 2px 4px #0006;
+	background:
+		repeating-conic-gradient(#ffffff12 0 3deg, #0000 3deg 9deg),
+		radial-gradient(circle at 38% 30%, #5e5a55, #23211f 58%, #0c0b0a);
+	box-shadow:
+		0 3px 0 #0009,
+		0 7px 12px #0005,
+		inset 0 1px 1px #fff4;
 }
-.toggle__bat {
+.plunger::before {
+	content: "";
 	position: absolute;
-	left: 50%;
-	bottom: 50%;
-	inline-size: 0.7rem;
-	block-size: 2rem;
-	translate: -50% 0;
-	transform-origin: 50% 100%;
-	rotate: 160deg;
-	border-radius: 0.35rem 0.35rem 0.2rem 0.2rem;
-	background: linear-gradient(90deg, #9a9a9a, #f4f4f4 45%, #8a8a8a);
-	transition: rotate 0.12s;
+	inset: 14%;
+	border-radius: 50%;
+	background: #0b0a09;
+	box-shadow:
+		inset 0 2px 3px #000c,
+		0 1px 0 #fff2;
+	transition: box-shadow 0.12s;
 }
-.toggle[aria-pressed="true"] .toggle__bat {
-	rotate: 20deg;
+.plunger[aria-pressed="true"]::before {
+	box-shadow:
+		inset 0 2px 3px #000c,
+		0 0 0 2px var(--pink),
+		0 0 8px var(--pink);
 }
-.toggle:focus-visible {
+.plunger__cap {
+	position: absolute;
+	inset: 20%;
+	border-radius: 50%;
+	background: radial-gradient(circle at 40% 32%, #4b4844, #1b1a18);
+	box-shadow:
+		inset 0 1px 1px #fff3,
+		0 4px 0 #050404,
+		0 6px 4px #0008;
+	translate: 0 -4px;
+	transition:
+		translate 0.08s,
+		box-shadow 0.08s;
+}
+.plunger__cap::after {
+	content: "";
+	position: absolute;
+	inset: 38%;
+	border-radius: 50%;
+	background: var(--pink);
+	box-shadow: 0 0 0 1px #0006;
+}
+.plunger:active .plunger__cap {
+	translate: 0 -1px;
+}
+.plunger[aria-pressed="true"] .plunger__cap {
+	translate: 0 0;
+	box-shadow:
+		inset 0 1px 1px #fff2,
+		0 1px 0 #050404;
+}
+.plunger:focus-visible {
 	outline: 3px solid var(--focus);
 	outline-offset: 4px;
 }
@@ -1430,19 +1375,6 @@ h1 {
 			"sync"
 			"controls";
 		padding: 1.25rem 1rem 1.5rem;
-	}
-	.tape {
-		inset: -1.4rem 0.5rem auto auto;
-		max-inline-size: 11rem;
-		font-size: 0.9rem;
-	}
-	.plate {
-		margin-top: 1.5rem;
-	}
-	.log {
-		margin-inline-start: 0;
-		padding-inline-end: 1rem;
-		rotate: -0.75deg;
 	}
 	.bezel {
 		position: sticky;
