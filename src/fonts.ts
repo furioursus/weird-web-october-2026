@@ -37,6 +37,9 @@ export const FONTS: FontFamily[] = [
 	{ name: "Kalam", weights: [400, 700] },
 	{ name: "Permanent Marker" },
 	{ name: "IBM Plex Mono", weights: [400, 500] },
+	{ name: "Oswald", weights: [500, 700] },
+	{ name: "Courier Prime", weights: [400, 700] },
+	{ name: "Caveat", weights: [500, 700] },
 	// new-day: fonts are added above this line
 ];
 

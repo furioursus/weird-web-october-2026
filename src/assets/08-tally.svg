@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 880">
+	<defs>
+		<linearGradient id="roll-shade" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#d4d0c4" />
+			<stop offset="0.3" stop-color="#f7f5ef" />
+			<stop offset="0.5" stop-color="#ffffff" />
+			<stop offset="0.75" stop-color="#eeebe2" />
+			<stop offset="1" stop-color="#c9c4b6" />
+		</linearGradient>
+		<linearGradient id="body-shade" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#f1f0eb" />
+			<stop offset="0.55" stop-color="#e6e5df" />
+			<stop offset="1" stop-color="#d6d4cc" />
+		</linearGradient>
+		<linearGradient id="glass-shine" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+			<stop offset="0.45" stop-color="#ffffff" stop-opacity="0.03" />
+			<stop offset="0.46" stop-color="#ffffff" stop-opacity="0" />
+		</linearGradient>
+		<linearGradient id="edge-shade" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#000000" stop-opacity="0" />
+			<stop offset="0.955" stop-color="#000000" stop-opacity="0" />
+			<stop offset="0.985" stop-color="#000000" stop-opacity="0.1" />
+			<stop offset="1" stop-color="#000000" stop-opacity="0.2" />
+		</linearGradient>
+	</defs>
+
+	<g id="roll-holder" fill="none" stroke="#a9a59b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M212 112V62H222" />
+		<path d="M388 112V62H378" />
+		<path d="M206 66C184 66 184 96 206 96" />
+	</g>
+	<g id="roll">
+		<rect id="roll-paper" x="220" y="26" width="160" height="98" rx="10" fill="url(#roll-shade)" />
+		<rect id="roll-end-left" x="213" y="54" width="9" height="42" rx="3" fill="#8b877c" />
+		<rect id="roll-end-right" x="378" y="54" width="9" height="42" rx="3" fill="#8b877c" />
+	</g>
+
+	<g id="body">
+		<rect id="body-shell" x="20" y="108" width="560" height="764" rx="30" fill="url(#body-shade)" stroke="#c6c3b9" stroke-width="2" />
+		<rect id="body-edge" x="20" y="108" width="560" height="764" rx="30" fill="url(#edge-shade)" />
+		<rect id="printer-cover" x="44" y="128" width="512" height="186" rx="14" fill="#f2f1ec" stroke="#d6d3ca" stroke-width="2" />
+		<rect id="paper-exit" x="218" y="150" width="164" height="24" rx="4" fill="#cdcac0" />
+		<rect id="window-bezel" x="203" y="173" width="194" height="78" rx="8" fill="#d9d6cd" />
+		<rect id="printer-window" x="210" y="180" width="180" height="64" rx="4" fill="#222428" />
+	</g>
+
+	<g id="display-panel">
+		<rect id="display" x="20" y="326" width="560" height="190" fill="#131416" />
+		<rect id="vfd" x="64" y="372" width="360" height="74" rx="5" fill="#040506" stroke="#26282b" stroke-width="2" />
+		<rect id="display-gloss" x="20" y="326" width="560" height="190" fill="url(#glass-shine)" />
+		<text id="brand" x="548" y="436" text-anchor="end" fill="#ecebe8" font-family="Oswald" font-weight="700" font-size="28" letter-spacing="4">TALLY</text>
+		<text id="model" x="548" y="456" text-anchor="end" fill="#bdbcb7" font-family="Oswald" font-size="12" letter-spacing="1">TL-808P</text>
+		<text id="digits" x="548" y="482" text-anchor="end" fill="#bdbcb7" font-family="Oswald" font-weight="700" font-size="17">12 DIGIT</text>
+	</g>
+
+	<g id="switch-bar">
+		<rect id="switch-deck" x="32" y="526" width="104" height="58" rx="6" fill="#ebeae5" stroke="#d3d0c7" stroke-width="1.5" />
+		<rect id="switch-power" x="44" y="556" width="80" height="16" rx="3" fill="#77746c" />
+		<g id="switch-labels" fill="#3a3933" font-family="Oswald" font-size="10" text-anchor="middle">
+			<text x="54" y="549">OFF</text>
+			<text x="74" y="549">•</text>
+			<text x="94" y="549">P</text>
+			<text x="114" y="549">P·IC</text>
+		</g>
+	</g>
+
+	<g id="keys" fill="#c3c0b6">
+		<rect id="key-mute" x="410" y="540" width="30" height="30" rx="6" />
+		<rect id="key-avg" x="444" y="540" width="30" height="30" rx="6" />
+		<rect id="key-sign" x="478" y="540" width="30" height="30" rx="6" />
+		<rect id="key-tax-plus" x="512" y="540" width="30" height="30" rx="6" />
+		<rect id="key-tax-minus" x="546" y="540" width="30" height="30" rx="6" />
+
+		<rect id="key-feed" x="40" y="604" width="54" height="54" rx="8" />
+		<rect id="key-back" x="102" y="604" width="54" height="54" rx="8" />
+		<rect id="key-gt" x="40" y="666" width="54" height="54" rx="8" />
+		<rect id="key-ce" x="102" y="666" width="54" height="54" rx="8" />
+		<rect id="key-hash" x="40" y="728" width="54" height="54" rx="8" />
+		<rect id="key-total" x="40" y="790" width="54" height="54" rx="8" />
+
+		<rect id="key-7" x="178" y="604" width="54" height="54" rx="8" />
+		<rect id="key-8" x="240" y="604" width="54" height="54" rx="8" />
+		<rect id="key-9" x="302" y="604" width="54" height="54" rx="8" />
+		<rect id="key-4" x="178" y="666" width="54" height="54" rx="8" />
+		<rect id="key-5" x="240" y="666" width="54" height="54" rx="8" />
+		<rect id="key-6" x="302" y="666" width="54" height="54" rx="8" />
+		<rect id="key-1" x="178" y="728" width="54" height="54" rx="8" />
+		<rect id="key-2" x="240" y="728" width="54" height="54" rx="8" />
+		<rect id="key-3" x="302" y="728" width="54" height="54" rx="8" />
+		<rect id="key-0" x="102" y="790" width="130" height="54" rx="8" />
+		<rect id="key-00" x="240" y="790" width="54" height="54" rx="8" />
+		<rect id="key-dot" x="302" y="790" width="54" height="54" rx="8" />
+
+		<rect id="key-minus" x="372" y="604" width="74" height="54" rx="8" />
+		<rect id="key-plus" x="372" y="666" width="74" height="178" rx="8" />
+		<rect id="key-percent" x="458" y="604" width="54" height="54" rx="8" />
+		<rect id="key-divide" x="458" y="666" width="54" height="54" rx="8" />
+		<rect id="key-times" x="458" y="728" width="54" height="116" rx="8" />
+		<rect id="key-mem-total" x="520" y="604" width="54" height="54" rx="8" />
+		<rect id="key-mem-sub" x="520" y="666" width="54" height="54" rx="8" />
+		<rect id="key-mem-minus" x="520" y="728" width="54" height="54" rx="8" />
+		<rect id="key-mem-plus" x="520" y="790" width="54" height="54" rx="8" />
+	</g>
+</svg>

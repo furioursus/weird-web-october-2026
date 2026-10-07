@@ -4,7 +4,8 @@
  * (it's absolutely positioned by default) and tint it with `color`. Clicking it marks the cat as
  * found for that day in localStorage, which the index page reads to show a running tally.
  *
- * The silhouettes are simple placeholders. Swap the SVG paths for real art whenever.
+ * The silhouettes are simple placeholders. To use real art instead (a photo, say), pass it as
+ * the default slot; it fills the button's width.
  */
 interface Props {
 	cat: "tybalt" | "dante";
@@ -22,6 +23,7 @@ interface Props {
 
 const { cat, day, size = 32, color = "currentColor", style = "", absolute = true } = Astro.props;
 const name = cat === "tybalt" ? "Tybalt" : "Dante";
+const hasArt = Astro.slots.has("default");
 ---
 
 <wwo-cat data-cat={cat} data-day={day}>
@@ -32,7 +34,9 @@ const name = cat === "tybalt" ? "Tybalt" : "Dante";
 		aria-label="Something small and furry"
 		style={`--wwo-cat-size: ${size}px; color: ${color}; ${style}`}
 	>
-		{cat === "tybalt" ? (
+		{hasArt ? (
+			<slot />
+		) : cat === "tybalt" ? (
 				<svg viewBox="0 0 64 64" aria-hidden="true">
 					<path
 						fill="currentColor"
@@ -111,6 +115,11 @@ const name = cat === "tybalt" ? "Tybalt" : "Dante";
 	}
 	:where(.wwo-cat--absolute) {
 		position: absolute;
+	}
+	:where(.wwo-cat img) {
+		display: block;
+		inline-size: 100%;
+		block-size: auto;
 	}
 	:where(.wwo-cat svg) {
 		inline-size: 100%;

@@ -1,0 +1,1919 @@
+---
+import { Image } from "astro:assets";
+import danteHead from "@/assets/08-dante-head.webp";
+import tallySource from "@/assets/08-tally.svg?raw";
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 8: Skeumorphism
+
+// Recorded sounds replace the synthesized ones when they're dropped into src/assets/sounds/08/:
+// key.mp3 for the main keys, small-key.mp3 for the four small keys, print.mp3 for the paper moving
+// up a line, plus numbered takes like key-2.mp3 that get picked at random
+const soundFiles = import.meta.glob<string>("../assets/sounds/08/*.{mp3,m4a,ogg,wav}", {
+	query: "?url",
+	import: "default",
+	eager: true,
+});
+const SOUNDS = Object.fromEntries(
+	Object.entries(soundFiles).map(([path, url]) => [
+		path.replace(/^.*\//, "").replace(/\.\w+$/, ""),
+		url,
+	]),
+);
+// The key and line sounds are cut from the Freesound recording (CC BY 3.0), so they need the credit line
+const usesFreesound = Object.keys(SOUNDS).some((name) => /^(key|small-key|print)(-|$)/.test(name));
+
+// The machine is drawn in src/assets/08-tally.svg; its rectangles place the keys, switches,
+// display and printer window (see docs/days/08-skeumorphism.md)
+interface Box {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+const [, , VIEW_WIDTH = 600, VIEW_HEIGHT = 880] = (
+	tallySource.match(/viewBox="([^"]+)"/)?.[1] ?? ""
+)
+	.trim()
+	.split(/[\s,]+/)
+	.map(Number);
+
+function readRect(id: string): Box | undefined {
+	const tag = tallySource.match(new RegExp(`<rect\\b[^>]*\\bid="${id}"[^>]*>`))?.[0];
+	if (!tag) {
+		return undefined;
+	}
+	if (/\btransform=/.test(tag)) {
+		throw new Error(
+			`Day 8: "${id}" is rotated or transformed in 08-tally.svg; keep it a plain rectangle.`,
+		);
+	}
+	const number = (name: string) =>
+		Number(tag.match(new RegExp(`\\b${name}="([-\\d.]+)"`))?.[1] ?? 0);
+	return { x: number("x"), y: number("y"), width: number("width"), height: number("height") };
+}
+
+function needRect(id: string) {
+	const box = readRect(id);
+	if (!box) {
+		throw new Error(`Day 8: 08-tally.svg needs a rectangle with the id "${id}".`);
+	}
+	return box;
+}
+
+const percent = (value: number, of: number) => `${((value / of) * 100).toFixed(3)}%`;
+const place = (box: Box) =>
+	`left: ${percent(box.x, VIEW_WIDTH)}; top: ${percent(box.y, VIEW_HEIGHT)}; width: ${percent(box.width, VIEW_WIDTH)}; height: ${percent(box.height, VIEW_HEIGHT)};`;
+
+const KEYS: Record<string, { label: string; name?: string; kind: string }> = {
+	mute: { label: "", name: "Mute", kind: "small" },
+	avg: { label: "AVG", name: "Average", kind: "small" },
+	sign: { label: "+/−", name: "Change sign", kind: "small" },
+	"tax-plus": { label: "TAX+", name: "Add sales tax", kind: "small yellow" },
+	"tax-minus": { label: "TAX−", name: "Take off sales tax", kind: "small yellow" },
+	feed: { label: "⇡", name: "Paper feed", kind: "dark" },
+	back: { label: "→", name: "Backspace", kind: "dark" },
+	gt: { label: "GT", name: "Grand total", kind: "blue" },
+	ce: { label: "CE", name: "Clear entry (twice clears all)", kind: "dark" },
+	hash: { label: "#/◇", name: "Non-add, or subtotal", kind: "dark" },
+	total: { label: "✱", name: "Total", kind: "dark" },
+	"0": { label: "0", kind: "digit" },
+	"00": { label: "00", kind: "digit" },
+	dot: { label: "•", name: "Decimal point", kind: "digit" },
+	"1": { label: "1", kind: "digit" },
+	"2": { label: "2", kind: "digit" },
+	"3": { label: "3", kind: "digit" },
+	"4": { label: "4", kind: "digit" },
+	"5": { label: "5", kind: "digit" },
+	"6": { label: "6", kind: "digit" },
+	"7": { label: "7", kind: "digit" },
+	"8": { label: "8", kind: "digit" },
+	"9": { label: "9", kind: "digit" },
+	minus: { label: "−=", name: "Minus", kind: "red" },
+	plus: { label: "+\n=", name: "Plus, or equals", kind: "dark tall" },
+	percent: { label: "%", name: "Percent", kind: "dark" },
+	divide: { label: "÷", name: "Divide", kind: "dark" },
+	times: { label: "×", name: "Times", kind: "dark tall" },
+	"mem-total": { label: "✱M", name: "Memory total", kind: "blue" },
+	"mem-sub": { label: "◇M", name: "Memory subtotal", kind: "blue" },
+	"mem-minus": { label: "M−", name: "Memory minus", kind: "blue" },
+	"mem-plus": { label: "M+", name: "Memory plus", kind: "blue" },
+};
+
+// Every key rectangle in the drawing needs a key here, and the other way around
+const drawnKeys = [...tallySource.matchAll(/\bid="key-([^"]+)"/g)].map((match) => match[1] ?? "");
+const unknownKeys = drawnKeys.filter((key) => !(key in KEYS));
+if (unknownKeys.length > 0) {
+	throw new Error(`Day 8: 08-tally.svg has keys the page doesn't know: ${unknownKeys.join(", ")}.`);
+}
+const keyButtons = Object.entries(KEYS).map(([action, key]) => ({
+	action: action === "dot" ? "." : action,
+	...key,
+	style: place(needRect(`key-${action}`)),
+}));
+
+const SWITCHES = [
+	{
+		id: "power",
+		name: "Power and printing",
+		stops: ["Off", "On, not printing", "Printing", "Printing with item count"],
+		start: 3,
+	},
+].map((slide) => {
+	const track = needRect(`switch-${slide.id}`);
+	const thumb = track.width / slide.stops.length;
+	return {
+		...slide,
+		style: `${place(track)} --thumb: ${((thumb / VIEW_WIDTH) * 100).toFixed(3)}cqw; --track: ${((track.height / VIEW_WIDTH) * 100).toFixed(3)}cqw;`,
+	};
+});
+
+const vfd = needRect("vfd");
+const printerWindow = needRect("printer-window");
+const TAPE_INSET = 15; // paper is this much narrower than the window on each side
+const tapeStyle = `left: ${percent(printerWindow.x + TAPE_INSET, VIEW_WIDTH)}; width: ${percent(printerWindow.width - TAPE_INSET * 2, VIEW_WIDTH)}; bottom: ${percent(VIEW_HEIGHT - printerWindow.y - printerWindow.height, VIEW_HEIGHT)};`;
+const cutterStyle = place({
+	x: printerWindow.x - 4,
+	y: printerWindow.y - 6,
+	width: printerWindow.width + 8,
+	height: 10,
+});
+
+const art = tallySource
+	.replace(/<\?xml[^>]*>/, "")
+	.replace(/<!--[\s\S]*?-->/g, "")
+	.replace(/<svg\b/, '<svg class="tally__art" aria-hidden="true" focusable="false"');
+---
+
+<Day
+	day={8}
+	description="A printing adding machine on green felt. Every key prints on a paper tape; tear it off and it gets crumpled onto the pile."
+	fonts={["Oswald", "Courier Prime", "Caveat", "DSEG7 Classic"]}
+>
+	<main class="felt" data-sounds={JSON.stringify(SOUNDS)}>
+		<h1 class="visually-hidden">Tally, a printing adding machine</h1>
+
+		<p class="note">
+			✱ prints the total.<br />#/◇ alone: subtotal.<br />Tear the tape at the cutter.
+		</p>
+
+		<div class="tally" style={`aspect-ratio: ${VIEW_WIDTH} / ${VIEW_HEIGHT};`}>
+			<Fragment set:html={art} />
+
+			<div class="vfd" style={place(vfd)} aria-hidden="true">
+				<span class="vfd__flags">
+					<span data-flag="memory">M</span>
+					<span data-flag="grand">GT</span>
+					<span data-flag="times">×</span>
+					<span data-flag="divide">÷</span>
+					<span data-flag="error">E</span>
+				</span>
+				<span class="vfd__ghost">888888888888</span>
+				<span class="vfd__digits">0.</span>
+			</div>
+			<output class="visually-hidden display-readout">0</output>
+
+			{SWITCHES.map((slide) => (
+	<input
+		class="slide"
+		type="range"
+		min="0"
+		max={slide.stops.length - 1}
+		step="1"
+		value={slide.start}
+		data-switch={slide.id}
+		data-stops={JSON.stringify(slide.stops)}
+		aria-label={slide.name}
+		aria-valuetext={slide.stops[slide.start]}
+		style={slide.style}
+	/>
+))}
+
+			{keyButtons.map((key) => (
+	<button
+		class={`key ${key.kind
+			.split(" ")
+			.map((kind) => `key--${kind}`)
+			.join(" ")}`}
+		type="button"
+		data-action={key.action}
+		aria-label={key.name}
+		aria-pressed={key.action === "mute" ? "false" : undefined}
+		style={key.style}
+	>
+		{key.action === "mute" ? (
+			<svg class="speaker" viewBox="0 0 24 24" aria-hidden="true">
+				<path class="speaker__body" d="M3 9h4l5-4v14l-5-4H3z" />
+				<path class="speaker__waves" d="M15.5 9c1.4 1.7 1.4 4.3 0 6M18.5 6.5c2.8 3.1 2.8 7.9 0 11" />
+				<path class="speaker__off" d="M15.5 9.5l5 5M20.5 9.5l-5 5" />
+			</svg>
+		) : (
+			key.label
+		)}
+	</button>
+))}
+
+			<ol class="tape" role="log" aria-label="Paper tape" style={tapeStyle}></ol>
+			<span class="glass" style={place(printerWindow)} aria-hidden="true"></span>
+			<button
+				class="cutter"
+				type="button"
+				aria-label="Tear off the tape"
+				style={cutterStyle}
+			></button>
+		</div>
+
+		<div class="pile" data-photo-shape={danteHead.height / danteHead.width}>
+			<div class="pile__cat">
+				<HiddenCat cat="dante" day={8} size={96} absolute={false}>
+					<Image src={danteHead} alt="" width={192} loading="eager" />
+				</HiddenCat>
+			</div>
+			<div class="pile__balls" aria-hidden="true"></div>
+		</div>
+
+		{usesFreesound && (
+	<p class="credit">
+		Adding machine:{" "}
+		<a href="https://freesound.org/people/stephendemaria/sounds/155667/">“adding_machine.wav”</a> by
+		stephendemaria (Spoileralerts.org),{" "}
+		<a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>
+	</p>
+)}
+	</main>
+</Day>
+
+<script>
+	// The parts of the page we need
+	const felt = document.querySelector(".felt") as HTMLElement;
+	const tally = felt.querySelector(".tally") as HTMLElement;
+	const keys = [...tally.querySelectorAll<HTMLButtonElement>(".key")];
+	const slides = [...tally.querySelectorAll<HTMLInputElement>(".slide")];
+	const displayDigits = tally.querySelector(".vfd__digits") as HTMLElement;
+	const displayFlags = [...tally.querySelectorAll<HTMLElement>("[data-flag]")];
+	const displayReadout = tally.querySelector(".display-readout") as HTMLOutputElement;
+	const vfd = tally.querySelector(".vfd") as HTMLElement;
+	const tape = tally.querySelector(".tape") as HTMLOListElement;
+	const cutter = tally.querySelector(".cutter") as HTMLButtonElement;
+	const pile = felt.querySelector(".pile") as HTMLElement;
+	const pileBalls = pile.querySelector(".pile__balls") as HTMLElement;
+	const danteButton = pile.querySelector(".wwo-cat") as HTMLButtonElement;
+	const muteButton = tally.querySelector('.key[data-action="mute"]') as HTMLButtonElement;
+	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+	// The machine's limits
+	const MAX_WHOLE_DIGITS = 7; // any more and a total won't fit across the tape
+	const TOO_BIG = 1e8; // results this big print an error
+	const DISPLAY_DIGITS = 12;
+	const TAX_RATE = 0.08875; // New York City sales tax
+
+	// The tape
+	const LINE_HEIGHT = 1.5; // in the tape's ems, matches the CSS
+	const TAPE_OVERHANG = 40; // px the tape runs past the top edge of the felt
+	const PAW_EVERY = 13; // Dante walked across the tape at some point. Several points.
+
+	// The power switch, as it's set on the machine
+	const settings = { power: 3 };
+	const POWER_OFF = 0;
+	const PRINTING = 2;
+	const PRINTING_ITEM_COUNT = 3;
+
+	// What the machine is holding on to
+	let entry = ""; // digits typed but not used yet
+	let entryNegative = false;
+	let shownValue = 0; // what the display shows when nothing's being typed
+	let total = 0;
+	let itemCount = 0;
+	let lastAmount = 0; // pressing + again with nothing typed adds this again
+	let grandTotal = 0;
+	let memory = 0;
+	let pending: { operation: string; value: number } | null = null; // a × or ÷ waiting for its second number
+	let jammed = false;
+
+	let linesPrinted = 0;
+	let tearing = false;
+
+	// Waits that only exist for the motion get much shorter when motion is reduced
+	function motionTime(milliseconds: number) {
+		if (reducedMotion.matches) {
+			return Math.min(milliseconds, 40);
+		}
+		return milliseconds;
+	}
+
+	function later(milliseconds: number) {
+		return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+	}
+
+	// ─── Sound: synthesized, until recorded sounds are added (see the frontmatter) ───
+
+	const VOLUME = 0.3; // how loud everything is, from 0 to 1
+	const MUTE_STORAGE_KEY = "wwo:tally-muted";
+
+	let audio: AudioContext | null = null;
+	let masterVolume: GainNode | null = null;
+	let noise: AudioBuffer | null = null;
+	let muted = readMuted();
+
+	// The browser only allows sound after a click, so the sound starts with the first one
+	function startAudio() {
+		if (!audio) {
+			audio = new AudioContext();
+			masterVolume = audio.createGain();
+			masterVolume.gain.value = muted ? 0 : VOLUME;
+			masterVolume.connect(audio.destination);
+
+			noise = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+			const samples = noise.getChannelData(0);
+			for (let i = 0; i < samples.length; i++) {
+				samples[i] = Math.random() * 2 - 1;
+			}
+		}
+		if (audio.state === "suspended") {
+			audio.resume();
+		}
+		return audio;
+	}
+
+	// The speaker key mutes everything. It's remembered in this browser.
+	function readMuted() {
+		try {
+			return localStorage.getItem(MUTE_STORAGE_KEY) === "true";
+		} catch {
+			return false;
+		}
+	}
+
+	function setMuted(next: boolean) {
+		muted = next;
+		try {
+			localStorage.setItem(MUTE_STORAGE_KEY, String(next));
+		} catch {
+			// Storage blocked (private window, etc.): muting still works for this visit
+		}
+		muteButton.setAttribute("aria-pressed", String(next));
+		if (audio && masterVolume) {
+			masterVolume.gain.setTargetAtTime(next ? 0 : VOLUME, audio.currentTime, 0.01);
+		}
+	}
+
+	muteButton.setAttribute("aria-pressed", String(muted));
+
+	// Recorded sounds, decoded ahead of time so the first key press can already use them
+	const recordedSounds = JSON.parse(felt.dataset.sounds ?? "{}") as Record<string, string>;
+	const decodedSounds = new Map<string, AudioBuffer>();
+	const decoder = new OfflineAudioContext(1, 1, 44100);
+
+	for (const [name, url] of Object.entries(recordedSounds)) {
+		fetch(url)
+			.then((response) => response.arrayBuffer())
+			.then((data) => decoder.decodeAudioData(data))
+			.then((buffer) => decodedSounds.set(name, buffer))
+			.catch(() => {
+				// Couldn't load it; the synthesized sound plays instead
+			});
+	}
+
+	// One of the takes for a sound (key, key-2, key-3…), picked at random, if there are any
+	function pickTake(name: string) {
+		const takes = [...decodedSounds.keys()].filter(
+			(take) => take === name || take.startsWith(`${name}-`),
+		);
+		const take = takes[Math.floor(Math.random() * takes.length)];
+		return take ? decodedSounds.get(take) : undefined;
+	}
+
+	// Plays a recorded sound. Returns it, or nothing when there isn't one,
+	// so the synthesized sound can play instead.
+	function playRecorded(name: string, volume = 1) {
+		const buffer = pickTake(name);
+		const context = startAudio();
+		if (!buffer || !masterVolume) {
+			return undefined;
+		}
+		const source = context.createBufferSource();
+		source.buffer = buffer;
+		const gain = context.createGain();
+		gain.gain.value = volume;
+		source.connect(gain).connect(masterVolume);
+		source.start();
+		return { source, gain, startedAt: context.currentTime };
+	}
+
+	// The paper moving up is one motor, so a new line cuts the last one's sound off instead of
+	// stacking on top of it. A line that's only just started gets to keep going.
+	const LINE_SOUND_HOLD = 0.25; // seconds before the next line can cut a line's sound off
+	let lineSound: ReturnType<typeof playRecorded>;
+
+	function playLineSound() {
+		if (!pickTake("print")) {
+			return false;
+		}
+		const context = startAudio();
+		if (lineSound && context.currentTime - lineSound.startedAt < LINE_SOUND_HOLD) {
+			return true;
+		}
+		if (lineSound) {
+			const fadeEnd = context.currentTime + 0.03;
+			lineSound.gain.gain.setTargetAtTime(0, context.currentTime, 0.01);
+			lineSound.source.stop(fadeEnd);
+		}
+		lineSound = playRecorded("print");
+		return true;
+	}
+
+	interface NoiseSound {
+		seconds: number;
+		filter?: BiquadFilterType;
+		frequency?: number;
+		sweepTo?: number; // slides the filter to this frequency over the sound
+		q?: number;
+		volume?: number;
+		delay?: number; // seconds
+	}
+
+	// A burst of filtered noise: clacks, chatter, rips
+	function playNoise(sound: NoiseSound) {
+		const context = startAudio();
+		if (!masterVolume || !noise) {
+			return;
+		}
+		const start = context.currentTime + (sound.delay ?? 0);
+		const end = start + sound.seconds;
+
+		const source = context.createBufferSource();
+		source.buffer = noise;
+		source.loop = true;
+
+		const filter = context.createBiquadFilter();
+		filter.type = sound.filter ?? "bandpass";
+		filter.frequency.setValueAtTime(sound.frequency ?? 1000, start);
+		if (sound.sweepTo) {
+			filter.frequency.exponentialRampToValueAtTime(sound.sweepTo, end);
+		}
+		filter.Q.value = sound.q ?? 1;
+
+		const envelope = context.createGain();
+		envelope.gain.setValueAtTime(0.0001, start);
+		envelope.gain.exponentialRampToValueAtTime(sound.volume ?? 0.3, start + 0.004);
+		envelope.gain.exponentialRampToValueAtTime(0.0001, end);
+
+		source.connect(filter).connect(envelope).connect(masterVolume);
+		source.start(start, Math.random() * 0.5);
+		source.stop(end + 0.05);
+	}
+
+	// A short pitched sound: thunks and ticks
+	function playTone(frequency: number, seconds: number, volume: number, slideTo?: number) {
+		const context = startAudio();
+		if (!masterVolume) {
+			return;
+		}
+		const start = context.currentTime;
+		const oscillator = context.createOscillator();
+		oscillator.type = "triangle";
+		oscillator.frequency.setValueAtTime(frequency, start);
+		if (slideTo) {
+			oscillator.frequency.exponentialRampToValueAtTime(slideTo, start + seconds);
+		}
+		const envelope = context.createGain();
+		envelope.gain.setValueAtTime(0.0001, start);
+		envelope.gain.exponentialRampToValueAtTime(volume, start + 0.004);
+		envelope.gain.exponentialRampToValueAtTime(0.0001, start + seconds);
+		oscillator.connect(envelope).connect(masterVolume);
+		oscillator.start(start);
+		oscillator.stop(start + seconds + 0.05);
+	}
+
+	// The four small keys up by the switch have their own, lighter click
+	const SMALL_KEYS = ["mute", "avg", "sign", "tax-plus", "tax-minus"];
+
+	function soundKey(action: string) {
+		const sound = SMALL_KEYS.includes(action) ? "small-key" : "key";
+		if (playRecorded(sound)) {
+			return;
+		}
+		playNoise({ seconds: 0.03, filter: "highpass", frequency: 2200, volume: 0.3 });
+		playTone(320, 0.04, 0.12, 180);
+	}
+
+	function soundJam() {
+		playNoise({ seconds: 0.08, filter: "lowpass", frequency: 300, volume: 0.5 });
+	}
+
+	// The print head chattering across, then the paper moving up a line
+	function soundPrint() {
+		if (playLineSound()) {
+			return;
+		}
+		for (let i = 0; i < 6; i++) {
+			const delay = i * 0.016;
+			playNoise({ seconds: 0.02, filter: "highpass", frequency: 2800, volume: 0.24, delay });
+		}
+		playTone(140, 0.07, 0.22, 80);
+		playNoise({ seconds: 0.08, frequency: 900, sweepTo: 1600, volume: 0.1, delay: 0.1 });
+	}
+
+	function soundFeed() {
+		if (playLineSound()) {
+			return;
+		}
+		playNoise({ seconds: 0.12, frequency: 700, sweepTo: 1800, volume: 0.16 });
+	}
+
+	function soundSlide() {
+		playNoise({ seconds: 0.04, filter: "highpass", frequency: 1500, volume: 0.28 });
+		playTone(900, 0.02, 0.08);
+	}
+
+	function soundRip() {
+		for (let i = 0; i < 6; i++) {
+			const frequency = 2200 + Math.random() * 2400;
+			playNoise({ seconds: 0.05, frequency, q: 0.8, volume: 0.3, delay: i * 0.04 });
+		}
+	}
+
+	function soundCrumple() {
+		for (let i = 0; i < 8; i++) {
+			const frequency = 1800 + Math.random() * 3200;
+			const seconds = 0.03 + Math.random() * 0.04;
+			playNoise({ seconds, frequency, q: 2, volume: 0.18, delay: 0.25 + i * 0.035 });
+		}
+		playNoise({ seconds: 0.2, filter: "lowpass", frequency: 900, volume: 0.14, delay: 0.6 });
+	}
+
+	function soundRustle() {
+		for (let i = 0; i < 4; i++) {
+			playNoise({ seconds: 0.06, frequency: 2600, q: 1.5, volume: 0.12, delay: i * 0.05 });
+		}
+	}
+
+	// A little chirp, from somewhere in the pile
+	function soundChirp() {
+		playTone(620, 0.09, 0.14, 940);
+		setTimeout(() => playTone(900, 0.12, 0.12, 700), 110);
+	}
+
+	// ─── Numbers, always to two places ───
+
+	// Rounds to cents, halves up
+	function rounded(value: number) {
+		return (Math.sign(value) * Math.round(Math.abs(value) * 100)) / 100;
+	}
+
+	// For the tape: thousands separators, and a trailing minus for negatives
+	function printed(value: number) {
+		const shown = rounded(value);
+		const sign = shown < 0 ? "−" : "";
+		const figures = Math.abs(shown).toLocaleString("en-US", {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		});
+		return `${figures}${sign}`;
+	}
+
+	// For the display: no separators, like the real thing
+	function displayed(value: number) {
+		const shown = rounded(value);
+		return `${shown < 0 ? "-" : ""}${Math.abs(shown).toFixed(2)}`;
+	}
+
+	// ─── The display ───
+
+	function updateDisplay() {
+		let text = "";
+		if (settings.power === POWER_OFF) {
+			text = "";
+		} else if (jammed) {
+			text = "E 0.";
+		} else if (entry) {
+			text = `${entryNegative ? "-" : ""}${entry}${entry.includes(".") ? "" : "."}`;
+		} else {
+			text = displayed(shownValue);
+		}
+		displayDigits.textContent = text.slice(-DISPLAY_DIGITS - 2);
+		displayReadout.textContent = text;
+		vfd.classList.toggle("is-off", settings.power === POWER_OFF);
+
+		const flags: Record<string, boolean> = {
+			memory: memory !== 0,
+			grand: grandTotal !== 0,
+			times: pending?.operation === "×",
+			divide: pending?.operation === "÷",
+			error: jammed,
+		};
+		for (const flag of displayFlags) {
+			flag.classList.toggle(
+				"is-on",
+				settings.power !== POWER_OFF && flags[flag.dataset.flag ?? ""] === true,
+			);
+		}
+	}
+
+	// ─── Printing on the tape ───
+
+	// Ink from a tired ribbon: every character sits a little high or low, a little light or dark
+	function inkedText(text: string) {
+		const fragment = document.createDocumentFragment();
+		for (const character of text) {
+			const letter = document.createElement("span");
+			letter.className = "ink";
+			letter.textContent = character;
+			letter.style.setProperty("--y", `${(Math.random() - 0.5) * 0.8}px`);
+			letter.style.setProperty("--o", String(0.72 + Math.random() * 0.28));
+			fragment.append(letter);
+		}
+		return fragment;
+	}
+
+	const PAW = `<svg viewBox="0 0 24 24"><ellipse cx="5.5" cy="10" rx="2.3" ry="3"/><ellipse cx="10" cy="5.5" rx="2.3" ry="3"/><ellipse cx="15" cy="5.5" rx="2.3" ry="3"/><ellipse cx="19.5" cy="10" rx="2.3" ry="3"/><path d="M12.5 11.5c-4 0-7 4-7 6.8 0 2.4 2.4 3 4 2.4s2-.9 3-.9 1.5.4 3 .9 4-.1 4-2.4c0-2.8-3-6.8-7-6.8z"/></svg>`;
+
+	function addPawPrint(line: HTMLElement) {
+		const paw = document.createElement("span");
+		paw.className = "paw";
+		paw.innerHTML = PAW;
+		paw.style.setProperty("--x", `${10 + Math.random() * 70}%`);
+		paw.style.setProperty("--r", `${Math.random() * 80 - 40}deg`);
+		line.append(paw);
+	}
+
+	interface PrintedLine {
+		amount?: string;
+		symbol?: string;
+		word?: string; // what the symbol means, for screen readers
+		count?: boolean; // prints the item count, when the power switch asks for it
+		red?: boolean;
+		quiet?: boolean; // no sound or motion, for the tape that's already there
+	}
+
+	function printLine(line: PrintedLine) {
+		if (settings.power < PRINTING) {
+			return;
+		}
+		const item = document.createElement("li");
+		if (line.red) {
+			item.classList.add("is-red");
+		}
+
+		const count = document.createElement("span");
+		count.className = "count";
+		if (line.count && settings.power === PRINTING_ITEM_COUNT) {
+			count.append(inkedText(String(itemCount).padStart(3, "0")));
+		}
+		item.append(count);
+
+		if (line.amount !== undefined) {
+			const figures = document.createElement("span");
+			figures.className = "figures";
+			figures.append(inkedText(`${line.amount} ${(line.symbol ?? "").padEnd(2, " ")}`));
+			item.append(figures);
+		}
+		if (line.word) {
+			const word = document.createElement("span");
+			word.className = "visually-hidden";
+			word.textContent = ` ${line.word}`;
+			item.append(word);
+		}
+
+		linesPrinted += 1;
+		if (linesPrinted % PAW_EVERY === 0) {
+			addPawPrint(item);
+		}
+
+		if (!line.quiet) {
+			item.classList.add("is-new");
+			if (line.amount === undefined) {
+				soundFeed();
+			} else {
+				soundPrint();
+			}
+		}
+		tape.append(item);
+	}
+
+	function feedPaper(blankLines: number, quiet = false) {
+		for (let i = 0; i < blankLines; i++) {
+			printLine({ quiet: quiet || i > 0 });
+		}
+	}
+
+	// ─── What the keys do ───
+
+	function entryValue() {
+		const value = Number(entry || "0");
+		return entryNegative ? -value : value;
+	}
+
+	function clearEntry() {
+		entry = "";
+		entryNegative = false;
+	}
+
+	// The number to work with: what's typed, or else what's on the display
+	function takeNumber() {
+		if (!entry) {
+			return shownValue;
+		}
+		const value = entryValue();
+		clearEntry();
+		return value;
+	}
+
+	// Anything too big for the machine jams it until CE is pressed
+	function tooBig(value: number) {
+		if (Math.abs(value) < TOO_BIG && Number.isFinite(value)) {
+			return false;
+		}
+		jammed = true;
+		soundJam();
+		printLine({ amount: "0", symbol: "E", word: "error" });
+		return true;
+	}
+
+	function typeDigit(digit: string) {
+		if (digit === "." && entry.includes(".")) {
+			soundJam();
+			return;
+		}
+		let next = entry + digit;
+		if (next.startsWith(".")) {
+			next = `0${next}`;
+		}
+		next = next.replace(/^0+(?=\d)/, ""); // no leading zeros
+		const [whole = ""] = next.split(".");
+		if (whole.length > MAX_WHOLE_DIGITS || next.replace(".", "").length > DISPLAY_DIGITS) {
+			soundJam();
+			return;
+		}
+		entry = next;
+	}
+
+	// Plus and minus. With nothing typed, they repeat the last amount, like the real thing.
+	function addAmount(sign: number) {
+		let amount = lastAmount;
+		if (entry) {
+			amount = entryValue();
+			clearEntry();
+		}
+		if (tooBig(total + sign * amount)) {
+			return;
+		}
+		lastAmount = amount;
+		total += sign * amount;
+		itemCount += 1;
+		shownValue = total;
+		if (sign > 0) {
+			printLine({ amount: printed(amount), symbol: "+", word: "plus", red: amount < 0 });
+		} else {
+			printLine({ amount: printed(amount), symbol: "−", word: "minus", red: true });
+		}
+	}
+
+	function calculate(a: number, operation: string, b: number) {
+		if (operation === "×") {
+			return a * b;
+		}
+		if (b === 0) {
+			return Number.POSITIVE_INFINITY;
+		}
+		return a / b;
+	}
+
+	// × and ÷ print the first number and wait for the second
+	function startOperation(operation: string) {
+		const value = takeNumber();
+		printLine({
+			amount: printed(value),
+			symbol: operation,
+			word: operation === "×" ? "times" : "divided by",
+		});
+		const running = pending ? calculate(pending.value, pending.operation, value) : value;
+		if (tooBig(running)) {
+			pending = null;
+			return;
+		}
+		pending = { operation, value: running };
+		shownValue = running;
+	}
+
+	// += (or %) after × or ÷ prints the second number and the answer
+	function finishOperation(asPercent: boolean) {
+		if (!pending) {
+			return false;
+		}
+		const operand = entry ? takeNumber() : pending.value;
+		let result = calculate(pending.value, pending.operation, operand);
+		if (asPercent) {
+			result =
+				pending.operation === "×"
+					? (pending.value * operand) / 100
+					: (pending.value / operand) * 100;
+		}
+		printLine({
+			amount: printed(operand),
+			symbol: asPercent ? "%" : "=",
+			word: asPercent ? "percent" : "equals",
+		});
+		pending = null;
+		if (tooBig(result)) {
+			return true;
+		}
+		printLine({ amount: printed(result), symbol: "*", word: "answer", red: result < 0 });
+		shownValue = result;
+		lastAmount = result;
+		return true;
+	}
+
+	function printTotal() {
+		if (entry) {
+			addAmount(1);
+		}
+		if (jammed) {
+			return;
+		}
+		printLine({ count: true, amount: printed(total), symbol: "*", word: "total", red: total < 0 });
+		grandTotal += total;
+		shownValue = total;
+		total = 0;
+		itemCount = 0;
+		lastAmount = 0;
+		feedPaper(2);
+	}
+
+	// #/◇: with a number typed, prints it without adding (a reference number). Alone, it's a subtotal.
+	function printHashOrSubtotal() {
+		if (entry) {
+			printLine({ amount: entry, symbol: "#", word: "reference" });
+			clearEntry();
+			return;
+		}
+		printLine({
+			count: true,
+			amount: printed(total),
+			symbol: "◇",
+			word: "subtotal",
+			red: total < 0,
+		});
+		shownValue = total;
+	}
+
+	function printGrandTotal() {
+		printLine({
+			amount: printed(grandTotal),
+			symbol: "G*",
+			word: "grand total",
+			red: grandTotal < 0,
+		});
+		shownValue = grandTotal;
+		grandTotal = 0;
+		feedPaper(2);
+	}
+
+	// CE clears what's typed. Pressed again, it clears everything but the memory.
+	function clearKey() {
+		if (jammed) {
+			jammed = false;
+			clearEntry();
+			return;
+		}
+		if (entry) {
+			clearEntry();
+			return;
+		}
+		total = 0;
+		itemCount = 0;
+		lastAmount = 0;
+		pending = null;
+		shownValue = 0;
+		printLine({ amount: printed(0), symbol: "C", word: "cleared" });
+	}
+
+	function memoryKey(action: string) {
+		if (action === "mem-plus" || action === "mem-minus") {
+			const value = takeNumber();
+			memory += action === "mem-plus" ? value : -value;
+			printLine({
+				amount: printed(value),
+				symbol: action === "mem-plus" ? "M+" : "M−",
+				word: action === "mem-plus" ? "memory plus" : "memory minus",
+				red: action === "mem-minus",
+			});
+			return;
+		}
+		printLine({
+			amount: printed(memory),
+			symbol: action === "mem-total" ? "*M" : "◇M",
+			word: action === "mem-total" ? "memory total" : "memory subtotal",
+			red: memory < 0,
+		});
+		shownValue = memory;
+		if (action === "mem-total") {
+			memory = 0;
+		}
+	}
+
+	function average() {
+		if (itemCount === 0) {
+			soundJam();
+			return;
+		}
+		const mean = total / itemCount;
+		printLine({ count: true, amount: printed(mean), symbol: "AV", word: "average", red: mean < 0 });
+		shownValue = mean;
+	}
+
+	function changeSign() {
+		if (entry) {
+			entryNegative = !entryNegative;
+			return;
+		}
+		shownValue = -shownValue;
+		entry = String(Math.abs(shownValue));
+		entryNegative = shownValue < 0;
+	}
+
+	// Sales tax on, or off, whatever's typed or showing
+	function tax(adding: boolean) {
+		const value = takeNumber();
+		const before = adding ? value : value / (1 + TAX_RATE);
+		const taxAmount = before * TAX_RATE;
+		const after = adding ? value + taxAmount : before;
+		printLine({ amount: printed(value), symbol: "", word: "price" });
+		printLine({ amount: printed(taxAmount), symbol: "TX", word: "tax" });
+		printLine({ amount: printed(after), symbol: "*", word: adding ? "with tax" : "before tax" });
+		shownValue = after;
+		lastAmount = after;
+	}
+
+	function press(action: string) {
+		// Mute works even with the power off; unmuting clicks so you can hear it's back
+		if (action === "mute") {
+			setMuted(!muted);
+			soundKey(action);
+			return;
+		}
+
+		soundKey(action);
+
+		// Switched off, the keys just click
+		if (settings.power === POWER_OFF) {
+			return;
+		}
+		// Jammed, only CE does anything
+		if (jammed && action !== "ce") {
+			soundJam();
+			return;
+		}
+
+		if (/^(\d|00|\.)$/.test(action)) {
+			typeDigit(action);
+		} else if (action === "back") {
+			entry = entry.slice(0, -1);
+		} else if (action === "plus") {
+			if (!finishOperation(false)) {
+				addAmount(1);
+			}
+		} else if (action === "minus") {
+			if (!finishOperation(false)) {
+				addAmount(-1);
+			}
+		} else if (action === "times") {
+			startOperation("×");
+		} else if (action === "divide") {
+			startOperation("÷");
+		} else if (action === "percent") {
+			if (!finishOperation(true)) {
+				soundJam();
+			}
+		} else if (action === "total") {
+			printTotal();
+		} else if (action === "hash") {
+			printHashOrSubtotal();
+		} else if (action === "gt") {
+			printGrandTotal();
+		} else if (action === "ce") {
+			clearKey();
+		} else if (action === "feed") {
+			feedPaper(1);
+		} else if (action.startsWith("mem-")) {
+			memoryKey(action);
+		} else if (action === "avg") {
+			average();
+		} else if (action === "sign") {
+			changeSign();
+		} else if (action === "tax-plus") {
+			tax(true);
+		} else if (action === "tax-minus") {
+			tax(false);
+		}
+		updateDisplay();
+	}
+
+	// Shows a key going down when it's pressed from the keyboard
+	function flashKey(action: string) {
+		const key = keys.find((button) => button.dataset.action === action);
+		if (!key) {
+			return;
+		}
+		key.classList.add("is-down");
+		setTimeout(() => key.classList.remove("is-down"), 110);
+	}
+
+	for (const key of keys) {
+		key.addEventListener("click", () => press(key.dataset.action ?? ""));
+	}
+
+	// Typing works too
+	const KEYBOARD: Record<string, string> = {
+		m: "mute",
+		"+": "plus",
+		"=": "plus",
+		"-": "minus",
+		"*": "times",
+		x: "times",
+		"/": "divide",
+		"%": "percent",
+		Enter: "total",
+		s: "hash",
+		"#": "hash",
+		g: "gt",
+		Escape: "ce",
+		Delete: "ce",
+		Backspace: "back",
+		".": ".",
+		",": ".",
+	};
+
+	document.addEventListener("keydown", (event) => {
+		if (event.metaKey || event.ctrlKey || event.altKey) {
+			return;
+		}
+		// Let a focused switch, or a focused button's Enter and Space, do their own thing
+		if (event.target instanceof HTMLInputElement) {
+			return;
+		}
+		if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLButtonElement) {
+			return;
+		}
+		if (event.key === "t" || event.key === "T") {
+			tearOff();
+			return;
+		}
+		const action = /^[0-9]$/.test(event.key) ? event.key : KEYBOARD[event.key];
+		if (!action) {
+			return;
+		}
+		event.preventDefault();
+		flashKey(action);
+		press(action);
+	});
+
+	// ─── The power switch ───
+
+	for (const slide of slides) {
+		const stops = JSON.parse(slide.dataset.stops ?? "[]") as string[];
+		slide.addEventListener("input", () => {
+			const setting = slide.dataset.switch as keyof typeof settings;
+			settings[setting] = slide.valueAsNumber;
+			slide.setAttribute("aria-valuetext", stops[slide.valueAsNumber] ?? "");
+			soundSlide();
+			if (setting === "power" && settings.power === POWER_OFF) {
+				clearEntry();
+			}
+			updateDisplay();
+		});
+	}
+
+	// ─── The tape runs up the felt and off the top edge ───
+
+	function measureTape() {
+		const lineHeight = Number.parseFloat(getComputedStyle(tape).fontSize) * LINE_HEIGHT;
+		const room =
+			tape.getBoundingClientRect().bottom - felt.getBoundingClientRect().top + TAPE_OVERHANG;
+		const lines = Math.max(3, Math.floor(room / lineHeight));
+		tape.style.maxHeight = `${lines * lineHeight}px`;
+		placePile();
+	}
+
+	// ─── The pile of crumpled tape, with Dante behind it ───
+
+	const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+	const DANTE_AFTER = 4; // balls in the pile before Dante shows up behind it
+	const MOST_BALLS = 16; // after this, new balls just roll off the pile
+	// Dante's photo, src/assets/08-dante-head.webp, shown 96px wide (the size on his HiddenCat).
+	// Its height comes from the file itself, so a resized photo still lines up.
+	const DANTE_WIDTH = 96;
+	const DANTE_HEIGHT = DANTE_WIDTH * Number(pile.dataset.photoShape);
+	const EARS_SHOWING = DANTE_HEIGHT * 0.26; // the top of the photo down to just above his forehead
+	const CHIN_FROM_BOTTOM = DANTE_HEIGHT * 0.053; // his chin up from the bottom of the photo
+	const HIDING_BALL_RADIUS = 38; // px, at least: the ball he hides behind has to cover his face
+
+	// Where each ball lands, as [across, up] from the middle of the pile's base, in px.
+	// They start in a clump in the middle and the pile spreads out and up from there.
+	const BALL_SPOTS: [number, number][] = [
+		[0, 0],
+		[-34, 0],
+		[34, 2],
+		[-16, 26],
+		[18, 26],
+		[-62, 0],
+		[62, 0],
+		[-44, 24],
+		[46, 24],
+		[0, 48],
+		[-24, 46],
+		[26, 46],
+		[0, 68],
+	];
+
+	let ballsInPile = 0;
+	const landedBalls: { across: number; top: number; radius: number }[] = [];
+	let danteAcross: number | null = null; // where the ball he hides behind landed
+
+	// Beside the machine when there's room, otherwise above it on the right
+	function placePile() {
+		const feltBox = felt.getBoundingClientRect();
+		const machineBox = tally.getBoundingClientRect();
+		const gutter = machineBox.left - feltBox.left;
+		if (gutter >= 190) {
+			pile.style.left = `${gutter / 2}px`;
+			pile.style.top = `${machineBox.bottom - feltBox.top - 40}px`;
+		} else {
+			pile.style.left = `${feltBox.width * 0.76}px`;
+			pile.style.top = `${Math.max(170, (machineBox.top - feltBox.top) * 0.78)}px`;
+		}
+	}
+
+	// A crumpled ball of tape, built from flat folded facets lit from the top left.
+	// An outer ring of points makes the jagged outline, an inner ring and a middle point make the folds,
+	// and every triangle between them gets its own shade.
+	const OUTER_POINTS = 16;
+	const INNER_POINTS = 8; // half the outer ring, so each inner point sits behind two outer ones
+	const LIGHT: [number, number, number] = [-0.45, -0.65, 0.62]; // where the light comes from: left, up, toward us
+
+	type Point = [number, number];
+
+	function ringPoint(angle: number, distance: number): Point {
+		return [Math.cos(angle) * distance, Math.sin(angle) * distance];
+	}
+
+	// How bright a facet is: tilted outward like a ball, plus a random crumple, against the light
+	function facetShade(corners: Point[]) {
+		const middleX = corners.reduce((sum, [x]) => sum + x, 0) / corners.length;
+		const middleY = corners.reduce((sum, [, y]) => sum + y, 0) / corners.length;
+		const tiltX = middleX / 45 + (Math.random() - 0.5) * 1.3;
+		const tiltY = middleY / 45 + (Math.random() - 0.5) * 1.3;
+		const length = Math.hypot(tiltX, tiltY, 1);
+		const facing = (tiltX * LIGHT[0] + tiltY * LIGHT[1] + LIGHT[2]) / length;
+		const light = Math.min(1, Math.max(0, (facing + 0.35) / 1.3));
+		const gray = Math.round(160 + light * 95);
+		return `rgb(${gray} ${gray} ${gray - 3})`;
+	}
+
+	function drawPath(parent: SVGElement, corners: Point[], className: string, color?: string) {
+		const shape = document.createElementNS(SVG_NAMESPACE, "path");
+		const d = corners.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L");
+		shape.setAttribute("d", `M${d}Z`);
+		shape.setAttribute("class", className);
+		if (color) {
+			shape.setAttribute("fill", color);
+			shape.setAttribute("stroke", color);
+		}
+		parent.append(shape);
+		return shape;
+	}
+
+	function makePaperBall(radius: number) {
+		const ball = document.createElementNS(SVG_NAMESPACE, "svg");
+		ball.setAttribute("viewBox", "-50 -50 100 100");
+		ball.classList.add("ball");
+		ball.style.setProperty("--size", `${radius * 2}px`);
+
+		// The jagged outline
+		const outer: Point[] = [];
+		for (let i = 0; i < OUTER_POINTS; i++) {
+			const angle = (i / OUTER_POINTS) * Math.PI * 2 + (Math.random() - 0.5) * 0.24;
+			outer.push(ringPoint(angle, 44 * (0.8 + Math.random() * 0.28)));
+		}
+
+		// The folds inside it
+		const inner: Point[] = [];
+		for (let j = 0; j < INNER_POINTS; j++) {
+			const angle = ((2 * j + 1) / OUTER_POINTS) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+			inner.push(ringPoint(angle, 16 + Math.random() * 14));
+		}
+		const middle: Point = [(Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12];
+
+		// Every facet between the rings, shaded on its own
+		for (let j = 0; j < INNER_POINTS; j++) {
+			const first = outer[2 * j] as Point;
+			const second = outer[2 * j + 1] as Point;
+			const third = outer[(2 * j + 2) % OUTER_POINTS] as Point;
+			const fold = inner[j] as Point;
+			const nextFold = inner[(j + 1) % INNER_POINTS] as Point;
+			for (const facet of [
+				[first, second, fold],
+				[second, third, fold],
+				[third, nextFold, fold],
+				[fold, nextFold, middle],
+			]) {
+				drawPath(ball, facet, "ball__facet", facetShade(facet));
+			}
+		}
+
+		// A few deep folds, in shadow
+		for (let i = 0; i < 4; i++) {
+			const j = Math.floor(Math.random() * INNER_POINTS);
+			const crease = document.createElementNS(SVG_NAMESPACE, "path");
+			const [fromX, fromY] = inner[j] as Point;
+			const [toX, toY] = outer[2 * j + (Math.random() < 0.5 ? 0 : 1)] as Point;
+			crease.setAttribute(
+				"d",
+				`M${fromX.toFixed(1)} ${fromY.toFixed(1)}L${toX.toFixed(1)} ${toY.toFixed(1)}`,
+			);
+			crease.setAttribute("class", "ball__crease");
+			ball.append(crease);
+		}
+
+		// The edge, and a smudge of printed figures on one face
+		drawPath(ball, outer, "ball__edge");
+		const [inkX, inkY] = inner[Math.floor(Math.random() * INNER_POINTS)] as Point;
+		const ink = document.createElementNS(SVG_NAMESPACE, "path");
+		ink.setAttribute(
+			"d",
+			`M${inkX.toFixed(1)} ${inkY.toFixed(1)}h${(8 + Math.random() * 8).toFixed(1)}`,
+		);
+		ink.setAttribute("class", "ball__ink");
+		ball.append(ink);
+		return ball;
+	}
+
+	// Each torn-off length crumples into one ball; longer tape makes a bigger one.
+	// The ball Dante hides behind is always big enough to cover his face.
+	function addBall(lineCount: number) {
+		const hidingBall = ballsInPile + 1 === DANTE_AFTER;
+		let radius = Math.min(38, Math.max(26, 24 + lineCount * 0.5));
+		if (hidingBall) {
+			radius = Math.max(radius, HIDING_BALL_RADIUS);
+		}
+		const ball = makePaperBall(radius);
+		const spot = BALL_SPOTS[ballsInPile];
+		let across = (Math.random() - 0.5) * 60;
+		let up = 50 + Math.random() * 40;
+		if (spot) {
+			across = spot[0] + (Math.random() - 0.5) * 10;
+			up = spot[1] + (Math.random() - 0.5) * 6;
+		}
+		ball.style.left = `${across}px`;
+		ball.style.bottom = `${up}px`;
+		ball.style.setProperty("--turn", `${(Math.random() - 0.5) * 40}deg`);
+		pileBalls.append(ball);
+		ballsInPile += 1;
+		landedBalls.push({ across, top: up + radius * 2, radius });
+
+		// Past the limit, the oldest loose ball rolls away
+		if (ballsInPile > MOST_BALLS) {
+			pileBalls.querySelector(".ball:nth-child(11)")?.remove();
+		}
+
+		// Dante settles in right behind the hiding ball
+		if (hidingBall) {
+			danteAcross = across;
+			pile.style.setProperty("--dante-across", `${across}px`);
+			setTimeout(() => pile.classList.add("has-dante"), motionTime(900));
+		}
+		placeDante();
+	}
+
+	// Hiding: only his ears over the top of whatever ball is right in front of him.
+	// Found: up to his chin, the rest still behind the paper.
+	function placeDante() {
+		if (danteAcross === null) {
+			return;
+		}
+		let topInFront = 0;
+		for (const ball of landedBalls) {
+			if (Math.abs(ball.across - danteAcross) < ball.radius) {
+				topInFront = Math.max(topInFront, ball.top);
+			}
+		}
+		const hidingBottom = Math.max(0, topInFront - DANTE_HEIGHT + EARS_SHOWING);
+		const foundBottom = topInFront - CHIN_FROM_BOTTOM - 6;
+		pile.style.setProperty("--dante-bottom", `${hidingBottom}px`);
+		pile.style.setProperty("--dante-found-bottom", `${foundBottom}px`);
+	}
+
+	// Clicking the pile: once Dante's in there, that finds him. Before then, it just rustles.
+	function poke() {
+		if (pile.classList.contains("has-dante")) {
+			danteButton.click();
+			return;
+		}
+		soundRustle();
+		if (reducedMotion.matches) {
+			return;
+		}
+		for (const ball of pileBalls.querySelectorAll(".ball")) {
+			ball.animate(
+				[{ rotate: "0deg" }, { rotate: "-6deg" }, { rotate: "5deg" }, { rotate: "0deg" }],
+				{ duration: 260, composite: "add" },
+			);
+		}
+	}
+
+	pileBalls.addEventListener("click", poke);
+
+	// However he's found, by the pile or by his ears, he pops up out of it
+	felt.addEventListener("wwo:cat-found", () => {
+		pile.classList.add("is-found");
+		soundChirp();
+	});
+
+	// ─── Tearing it off: the whole length gets crumpled up and tossed on the pile ───
+
+	async function tearOff() {
+		const lineCount = tape.children.length;
+		if (tearing || lineCount === 0) {
+			return;
+		}
+		tearing = true;
+		soundRip();
+		soundCrumple();
+		tape.classList.add("is-torn");
+		await later(motionTime(420));
+
+		addBall(lineCount);
+		tape.classList.add("no-transition");
+		tape.classList.remove("is-torn");
+		tape.replaceChildren();
+		void tape.offsetWidth;
+		tape.classList.remove("no-transition");
+		tearing = false;
+	}
+
+	cutter.addEventListener("click", tearOff);
+	tape.addEventListener("click", tearOff);
+
+	// ─── Yesterday's tape is still in the machine ───
+
+	printLine({ amount: "10·07·26", symbol: "#", word: "date", quiet: true });
+	printLine({ amount: "4.50", symbol: "+", word: "plus", quiet: true });
+	printLine({ amount: "2.25", symbol: "+", word: "plus", quiet: true });
+	printLine({ amount: "6.75", symbol: "+", word: "plus", quiet: true });
+	itemCount = 3;
+	printLine({ count: true, amount: "13.50", symbol: "*", word: "total", quiet: true });
+	itemCount = 0;
+	feedPaper(2, true);
+	const yesterday = tape.children[2] as HTMLElement;
+	addPawPrint(yesterday);
+
+	updateDisplay();
+	measureTape();
+	window.addEventListener("resize", measureTape);
+	document.fonts.ready.then(measureTape);
+</script>
+
+<style is:global>
+	/* Global, because the machine's drawing is injected from the SVG; see docs/days/08-skeumorphism.md */
+	:root {
+		--paper: #fbf8ee;
+		--ink: #23212a;
+		--red-ink: #c3261b;
+		--glow: #7ff5d8;
+		--amber: #ffb02e;
+		--oswald: var(--font-oswald);
+		--typed: var(--font-courier-prime);
+		--hand: var(--font-caveat);
+		--segments: var(--font-dseg7-classic);
+	}
+	body {
+		margin: 0;
+		background: #0e3a1e;
+		color: var(--ink);
+		font-family: var(--typed), ui-monospace, monospace;
+	}
+	.visually-hidden {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	/* Green felt, like the old iOS Game Center table */
+	.felt {
+		position: relative;
+		block-size: 100dvh;
+		min-block-size: 520px;
+		overflow: hidden;
+		background:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 1 0 0 0 0 0.8 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.6 2.4' numOctaves='2' stitchTiles='stitch' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0.05 0 0 0 0 0 0 0 0 0.22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E"),
+			radial-gradient(110% 80% at 50% 60%, #2f8048, #1e5e33 55%, #0e3a1e);
+	}
+	.felt::before {
+		content: "";
+		position: absolute;
+		inset: 14px;
+		border: 2px dashed rgba(226, 244, 214, 0.5);
+		border-radius: 22px;
+		filter: drop-shadow(0 1.5px 0 rgba(0, 0, 0, 0.45));
+		pointer-events: none;
+	}
+	.felt::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+		pointer-events: none;
+	}
+	.credit {
+		position: absolute;
+		left: 34px;
+		bottom: 26px;
+		z-index: 5;
+		max-inline-size: min(300px, 26%);
+		margin: 0;
+		color: rgba(226, 244, 214, 0.7);
+		font: 400 11px / 1.4 var(--typed);
+	}
+	.credit a {
+		color: inherit;
+	}
+	@media (max-width: 760px) {
+		.credit {
+			max-inline-size: calc(100% - 220px);
+		}
+	}
+
+	/* A sticky note on the felt */
+	.note {
+		position: absolute;
+		top: 40px;
+		left: max(30px, calc(50% - 520px));
+		z-index: 2;
+		inline-size: 200px;
+		margin: 0;
+		padding: 14px 16px 18px;
+		background: linear-gradient(#fff59a, #f6e66f);
+		color: #263889;
+		font: 500 21px / 1.15 var(--hand);
+		rotate: -3deg;
+		box-shadow:
+			0 1px 1px rgba(0, 0, 0, 0.15),
+			0 10px 14px -6px rgba(0, 0, 0, 0.35);
+	}
+	@media (max-width: 760px) {
+		.note {
+			top: 28px;
+			left: 24px;
+			inline-size: 120px;
+			padding: 8px 10px 10px;
+			font-size: 14px;
+		}
+	}
+
+	/* The machine: the drawing, with live keys, switches, display and tape laid over it */
+	.tally {
+		position: absolute;
+		top: calc(50% + 30px);
+		left: 50%;
+		z-index: 3;
+		inline-size: min(560px, calc(100vw - 32px), calc((100dvh - 150px) * 600 / 880));
+		translate: -50% -50%;
+		container-type: inline-size;
+	}
+	.tally__art {
+		display: block;
+		inline-size: 100%;
+		block-size: auto;
+		overflow: visible;
+		filter: drop-shadow(0 1.4cqw 1.6cqw rgba(0, 0, 0, 0.45));
+	}
+	.tally__art text {
+		font-family: var(--oswald);
+	}
+
+	/* The fluorescent display behind the black glass */
+	.vfd {
+		position: absolute;
+		display: grid;
+		align-items: end;
+		padding: 0 1.6cqw 0.6cqw;
+		box-sizing: border-box;
+		overflow: hidden;
+		pointer-events: none;
+	}
+	.vfd__ghost,
+	.vfd__digits {
+		grid-area: 1 / 1;
+		justify-self: end;
+		font: 700 5cqw / 1 var(--segments);
+		letter-spacing: 0.04em;
+		white-space: pre;
+	}
+	.vfd__ghost {
+		color: rgba(127, 245, 216, 0.07);
+	}
+	.vfd__digits {
+		color: var(--glow);
+		text-shadow:
+			0 0 0.6cqw rgba(127, 245, 216, 0.7),
+			0 0 2cqw rgba(127, 245, 216, 0.35);
+	}
+	.vfd.is-off .vfd__ghost {
+		color: rgba(127, 245, 216, 0.03);
+	}
+	.vfd__flags {
+		position: absolute;
+		top: 0.8cqw;
+		left: 1.6cqw;
+		display: flex;
+		gap: 1.4cqw;
+		font: 600 1.7cqw / 1 var(--oswald);
+		color: rgba(127, 245, 216, 0.08);
+	}
+	.vfd__flags .is-on {
+		color: var(--glow);
+		text-shadow: 0 0 0.6cqw rgba(127, 245, 216, 0.7);
+	}
+
+	/* The keys sit on the wells drawn in the SVG */
+	.key {
+		--cap: linear-gradient(#77797f, #5c5e64);
+		--side: #36373b;
+		--label: #f4f4f2;
+		position: absolute;
+		padding: 0;
+		border: 0;
+		border-radius: 1.2cqw 1.2cqw 1.6cqw 1.6cqw;
+		background: var(--cap);
+		color: var(--label);
+		font: 500 3.6cqw / 1 var(--oswald);
+		white-space: pre-line;
+		box-shadow:
+			0 0.8cqw 0 var(--side),
+			0 1.2cqw 1cqw rgba(0, 0, 0, 0.3),
+			inset 0 0.3cqw 0 rgba(255, 255, 255, 0.22);
+		translate: 0 -0.8cqw;
+		cursor: pointer;
+		transition:
+			translate 0.05s,
+			box-shadow 0.05s;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.key:active,
+	.key.is-down {
+		translate: 0 -0.1cqw;
+		box-shadow:
+			0 0.1cqw 0 var(--side),
+			0 0.2cqw 0.3cqw rgba(0, 0, 0, 0.3),
+			inset 0 0.3cqw 0 rgba(255, 255, 255, 0.12);
+	}
+	.key:focus-visible,
+	.slide:focus-visible,
+	.cutter:focus-visible {
+		outline: 0.6cqw solid var(--amber);
+		outline-offset: 0.4cqw;
+	}
+	.key--dark {
+		--cap: linear-gradient(#4a4c51, #34363a);
+		--side: #1d1e21;
+	}
+	.key--red {
+		--cap: linear-gradient(#e2564a, #c43a2f);
+		--side: #7d1d15;
+	}
+	.key--blue {
+		--cap: linear-gradient(#7193e2, #5675c8);
+		--side: #2e4689;
+	}
+	.key--yellow {
+		--cap: linear-gradient(#f6c142, #e3a41f);
+		--side: #8f6409;
+		--label: #2b2203;
+	}
+	.key--small {
+		font-size: 1.9cqw;
+		border-radius: 0.7cqw;
+		translate: 0 -0.5cqw;
+		box-shadow:
+			0 0.5cqw 0 var(--side),
+			0 0.8cqw 0.6cqw rgba(0, 0, 0, 0.3),
+			inset 0 0.2cqw 0 rgba(255, 255, 255, 0.2);
+	}
+	.key--small:not(.key--yellow) {
+		--cap: linear-gradient(#4a4c51, #34363a);
+		--side: #1d1e21;
+	}
+	.speaker {
+		display: block;
+		inline-size: 62%;
+		margin: auto;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.speaker__body {
+		fill: currentColor;
+	}
+	.speaker__off,
+	.key[aria-pressed="true"] .speaker__waves {
+		display: none;
+	}
+	.key[aria-pressed="true"] .speaker__off {
+		display: inline;
+	}
+	.key--tall {
+		font-size: 5.2cqw;
+		line-height: 1.5;
+	}
+
+	/* The slide switches, real range inputs with one stop per setting */
+	.slide {
+		position: absolute;
+		margin: 0;
+		appearance: none;
+		background: transparent;
+		cursor: pointer;
+	}
+	.slide::-webkit-slider-runnable-track {
+		block-size: var(--track);
+		background: transparent;
+	}
+	.slide::-moz-range-track {
+		block-size: var(--track);
+		background: transparent;
+	}
+	.slide::-webkit-slider-thumb {
+		appearance: none;
+		inline-size: var(--thumb);
+		block-size: calc(var(--track) * 1.5);
+		margin-block-start: calc(var(--track) * -0.25);
+		border: 0;
+		border-radius: 0.4cqw;
+		background:
+			repeating-linear-gradient(90deg, transparent 0 0.5cqw, rgba(0, 0, 0, 0.12) 0.5cqw 0.7cqw),
+			linear-gradient(#fbfaf6, #d6d3ca);
+		box-shadow:
+			0 0.3cqw 0.4cqw rgba(0, 0, 0, 0.45),
+			inset 0 0.1cqw 0 #fff;
+	}
+	.slide::-moz-range-thumb {
+		inline-size: var(--thumb);
+		block-size: calc(var(--track) * 1.5);
+		border: 0;
+		border-radius: 0.4cqw;
+		background:
+			repeating-linear-gradient(90deg, transparent 0 0.5cqw, rgba(0, 0, 0, 0.12) 0.5cqw 0.7cqw),
+			linear-gradient(#fbfaf6, #d6d3ca);
+		box-shadow:
+			0 0.3cqw 0.4cqw rgba(0, 0, 0, 0.45),
+			inset 0 0.1cqw 0 #fff;
+	}
+
+	/* The tape: it comes up out of the printer window, over the roll, and up the felt */
+	.tape {
+		position: absolute;
+		z-index: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		overflow: hidden;
+		color: var(--ink);
+		font: 700 2.2cqw / 1 var(--typed);
+		filter: drop-shadow(0 0.4cqw 0.5cqw rgba(0, 0, 0, 0.35));
+		cursor: pointer;
+		transform-origin: 50% 100%;
+	}
+	.tape:empty {
+		visibility: hidden;
+	}
+	.tape::before {
+		content: "";
+		flex: none;
+		block-size: 0.6em;
+		background:
+			linear-gradient(135deg, transparent 50%, var(--paper) 50%) 0 0 / 0.6em 0.6em repeat-x,
+			linear-gradient(225deg, transparent 50%, var(--paper) 50%) 0 0 / 0.6em 0.6em repeat-x;
+	}
+	.tape.is-torn {
+		opacity: 0;
+		translate: 30% -25%;
+		rotate: 8deg;
+		scale: 0.6;
+		transition:
+			translate 0.4s ease-in,
+			rotate 0.4s ease-in,
+			scale 0.4s ease-in,
+			opacity 0.25s 0.15s;
+	}
+	.tape.no-transition {
+		transition: none;
+	}
+	.tape li {
+		position: relative;
+		flex: none;
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		block-size: 1.5em;
+		padding: 0 0.5em 0.15em;
+		box-sizing: border-box;
+		overflow: hidden;
+		white-space: pre;
+		background:
+			linear-gradient(
+				90deg,
+				rgba(0, 0, 0, 0.07),
+				transparent 10%,
+				transparent 90%,
+				rgba(0, 0, 0, 0.07)
+			),
+			var(--paper);
+	}
+	.tape li.is-new {
+		animation: feed 0.14s steps(3);
+	}
+	@keyframes feed {
+		from {
+			block-size: 0;
+		}
+	}
+	.tape li.is-red {
+		color: var(--red-ink);
+	}
+	.tape .ink {
+		display: inline-block;
+		translate: 0 var(--y);
+		opacity: var(--o);
+	}
+	.tape .paw {
+		position: absolute;
+		top: -0.2em;
+		left: var(--x);
+		inline-size: 1.6em;
+		rotate: var(--r);
+		fill: #6b4a2b;
+		opacity: 0.55;
+	}
+	.tape .paw svg {
+		display: block;
+	}
+	.glass {
+		position: absolute;
+		z-index: 2;
+		border-radius: 0.6cqw;
+		background:
+			linear-gradient(160deg, rgba(255, 255, 255, 0.28), transparent 40%), rgba(20, 26, 30, 0.42);
+		box-shadow: inset 0 0 0 0.3cqw rgba(0, 0, 0, 0.35);
+		pointer-events: none;
+	}
+	.cutter {
+		position: absolute;
+		z-index: 3;
+		padding: 0;
+		border: 0;
+		background: linear-gradient(#f1f3f5, #9aa0a7);
+		clip-path: polygon(
+			0 0,
+			100% 0,
+			100% 55%,
+			97% 100%,
+			94% 55%,
+			91% 100%,
+			88% 55%,
+			85% 100%,
+			82% 55%,
+			79% 100%,
+			76% 55%,
+			73% 100%,
+			70% 55%,
+			67% 100%,
+			64% 55%,
+			61% 100%,
+			58% 55%,
+			55% 100%,
+			52% 55%,
+			49% 100%,
+			46% 55%,
+			43% 100%,
+			40% 55%,
+			37% 100%,
+			34% 55%,
+			31% 100%,
+			28% 55%,
+			25% 100%,
+			22% 55%,
+			19% 100%,
+			16% 55%,
+			13% 100%,
+			10% 55%,
+			7% 100%,
+			4% 55%,
+			0 100%
+		);
+		cursor: pointer;
+	}
+
+	/* The pile of crumpled tape. Its position is the middle of its base; everything hangs off that point. */
+	.pile {
+		position: absolute;
+		z-index: 2;
+		inline-size: 0;
+		block-size: 0;
+	}
+	.pile__balls {
+		position: absolute;
+		z-index: 1;
+	}
+	.ball {
+		position: absolute;
+		inline-size: var(--size);
+		block-size: var(--size);
+		translate: -50% 0;
+		rotate: var(--turn);
+		overflow: visible;
+		filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
+		cursor: pointer;
+		animation: toss 0.45s cubic-bezier(0.3, 1.5, 0.5, 1);
+	}
+	@keyframes toss {
+		from {
+			translate: -50% -70px;
+			scale: 1.3;
+			opacity: 0;
+		}
+	}
+	.ball__facet {
+		stroke-width: 0.8;
+		stroke-linejoin: round;
+	}
+	.ball__crease {
+		fill: none;
+		stroke: rgba(70, 70, 66, 0.35);
+		stroke-width: 0.9;
+		stroke-linecap: round;
+	}
+	.ball__edge {
+		fill: none;
+		stroke: #a8a8a2;
+		stroke-width: 1.2;
+		stroke-linejoin: round;
+	}
+	.ball__ink {
+		stroke: #3a3a40;
+		stroke-width: 2;
+		stroke-dasharray: 2.5 1.5;
+		opacity: 0.25;
+	}
+
+	/* Dante: hidden until the pile is big enough, then just his ears over the top, then his whole face.
+	   His face is 46.6% across the photo, so that's the point lined up with the ball he hides behind. */
+	.pile__cat {
+		position: absolute;
+		z-index: 0;
+		left: var(--dante-across, 0px);
+		bottom: var(--dante-bottom, 0px);
+		translate: -46.6% 40px;
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			translate 0.6s cubic-bezier(0.3, 1.5, 0.5, 1),
+			bottom 0.6s ease,
+			opacity 0.2s,
+			visibility 0s 0.6s;
+	}
+	.pile.has-dante .pile__cat {
+		translate: -46.6% 0;
+		opacity: 1;
+		visibility: visible;
+		transition:
+			translate 0.6s cubic-bezier(0.3, 1.5, 0.5, 1),
+			bottom 0.6s ease,
+			opacity 0.2s;
+	}
+	.pile.is-found .pile__cat {
+		bottom: var(--dante-found-bottom, 0px);
+	}
+	.pile__cat img {
+		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+		mask-image: linear-gradient(#000 90%, transparent);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
+</style>

@@ -27,4 +27,4 @@ Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only r
 - [Sharing](docs/sharing.md): head tags, the favicon and each day's generated preview card.
 - [Formatting](docs/formatting.md): Biome, and the lint rules that are off on purpose.
 - [Dev shortcuts](docs/dev-shortcuts.md): the `?jump=` parameters and finding which file renders an element.
-- Days: [2, Spark](docs/days/02-spark.md) · [3, Fake](docs/days/03-fake.md) · [4, Plastic](docs/days/04-plastic.md) · [5, Sheet](docs/days/05-sheet.md) · [6, Analog](docs/days/06-analog.md) · [7, Organic](docs/days/07-organic.md). A day with enough moving parts gets its own file in `docs/days/`, named after its page.
+- Days: [2, Spark](docs/days/02-spark.md) · [3, Fake](docs/days/03-fake.md) · [4, Plastic](docs/days/04-plastic.md) · [5, Sheet](docs/days/05-sheet.md) · [6, Analog](docs/days/06-analog.md) · [7, Organic](docs/days/07-organic.md) · [8, Skeumorphism](docs/days/08-skeumorphism.md). A day with enough moving parts gets its own file in `docs/days/`, named after its page.

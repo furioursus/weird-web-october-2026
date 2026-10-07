@@ -22,4 +22,5 @@ export const CARDS: Partial<Record<number, CardText>> = {
 	5: { title: "Cellmates", line: "A perfectly ordinary spreadsheet whose cells have feelings." },
 	6: { title: "Scope", line: "Twist the knobs until the phosphor grows ears." },
 	7: { title: "Blob", line: "One cell, no brain, and it still finds the oats first." },
+	8: { title: "Tally", line: "Every sum on paper tape, and something’s hiding in the scraps." },
 };
