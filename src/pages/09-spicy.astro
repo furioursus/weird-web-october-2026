@@ -752,11 +752,6 @@ const tybaltStyle = `--wwo-cat-size: ${percent(12 * layout.grid, CANVAS_WIDTH)};
 		margin-inline: auto;
 		padding: 28px 16px 64px;
 	}
-	/* The heading, the paper and the table wobble; the buttons you need to get out stay put */
-	.is-wobbling :is(.masthead, .board, .scoville) {
-		filter: url(#wobble);
-	}
-
 	.masthead {
 		grid-area: masthead;
 		text-align: center;
@@ -796,6 +791,17 @@ const tybaltStyle = `--wwo-cat-size: ${percent(12 * layout.grid, CANVAS_WIDTH)};
 		border: 4px solid var(--fg);
 		box-shadow: 8px 8px 0 var(--accent);
 	}
+	/* The paper wobbles, and on wider screens the heading and the table do too; the buttons you
+	   need to get out stay put. On phones every wobbling pixel costs frame rate, so it's just the paper. */
+	.is-wobbling .board {
+		filter: url(#wobble);
+	}
+	@media (width >= 900px) {
+		.is-wobbling :is(.masthead, .scoville) {
+			filter: url(#wobble);
+		}
+	}
+
 	.board__paper {
 		position: absolute;
 		inset: 0;
