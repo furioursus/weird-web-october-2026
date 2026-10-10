@@ -40,6 +40,7 @@ export const FONTS: FontFamily[] = [
 	{ name: "Oswald", weights: [500, 700] },
 	{ name: "Courier Prime", weights: [400, 700] },
 	{ name: "Caveat", weights: [500, 700] },
+	{ name: "Silkscreen", weights: [400, 700] },
 	// new-day: fonts are added above this line
 ];
 

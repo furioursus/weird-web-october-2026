@@ -1,0 +1,1033 @@
+---
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+import paper from "@/assets/09/paper.jpg";
+import layout from "@/assets/09/peppers.json";
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 9: Spicy
+
+// The sounds in src/assets/sounds/09/: bite.mp3 plus numbered takes like bite-2.mp3, picked at
+// random, and spicy.mp3 for when the bites add up
+const soundFiles = import.meta.glob<string>("../assets/sounds/09/*.mp3", {
+	query: "?url",
+	import: "default",
+	eager: true,
+});
+const SOUNDS = Object.fromEntries(
+	Object.entries(soundFiles).map(([path, url]) => [
+		path.replace(/^.*\//, "").replace(/\.\w+$/, ""),
+		url,
+	]),
+);
+
+// The peppers come out of my Photoshop file through `npm run peppers:psd`, which saves each one
+// (and a bitten copy) to src/assets/09/ and records where it sits in peppers.json.
+// See docs/days/09-spicy.md.
+
+// Every pepper on the table, mildest first. `low` and `high` are its Scoville range.
+const KINDS = [
+	{ id: "bell", name: "Bell pepper", low: 0, high: 0 },
+	{ id: "shishito", name: "Shishito", low: 50, high: 200 },
+	{ id: "banana", name: "Banana pepper", low: 0, high: 500 },
+	{ id: "poblano", name: "Poblano", low: 1000, high: 1500 },
+	{ id: "anaheim", name: "Anaheim", low: 500, high: 2500 },
+	{ id: "cherry", name: "Cherry pepper", low: 2500, high: 5000 },
+	{ id: "jalapeno", name: "Jalapeño", low: 2500, high: 8000 },
+	{ id: "fresno", name: "Fresno", low: 2500, high: 10000 },
+	{ id: "serrano", name: "Serrano", low: 10000, high: 23000 },
+	{ id: "habanero", name: "Habanero", low: 100000, high: 350000 },
+	{ id: "ghost-pepper", name: "Ghost pepper", low: 855000, high: 1041427 },
+];
+
+// How hard a pepper wobbles the page: nothing for a bell pepper, everything for the ghost pepper.
+// Scoville runs on powers of ten, so it's measured in digits, then curved so the mild ones stay gentle.
+const HOTTEST = Math.max(...KINDS.map((kind) => kind.high));
+const WHOLE_TABLE = KINDS.reduce((sum, kind) => sum + kind.high, 0);
+const heatFor = (high: number) => (Math.log10(high + 1) / Math.log10(HOTTEST + 1)) ** 2.2;
+
+const shu = (value: number) => value.toLocaleString("en-US");
+const kinds = KINDS.map((kind) => ({
+	...kind,
+	heat: heatFor(kind.high).toFixed(3),
+	range: kind.low === kind.high ? shu(kind.high) : `${shu(kind.low)}–${shu(kind.high)}`,
+	spokenRange:
+		kind.low === kind.high
+			? `${shu(kind.high)} Scoville heat units`
+			: `${shu(kind.low)} to ${shu(kind.high)} Scoville heat units`,
+}));
+
+// Every pepper in the PSD needs a row in KINDS, and the other way around
+const art = import.meta.glob<ImageMetadata>("../assets/09/*.png", {
+	eager: true,
+	import: "default",
+});
+const artFor = (file: string) => {
+	const image = art[`../assets/09/${file}.png`];
+	if (!image) {
+		throw new Error(
+			`Day 9: src/assets/09/${file}.png is missing; run npm run peppers:psd -- --write.`,
+		);
+	}
+	return image;
+};
+const [CANVAS_WIDTH, CANVAS_HEIGHT] = layout.canvas as [number, number];
+const drawnIds = layout.peppers.map((pepper) => pepper.id);
+const unknown = drawnIds.filter((id) => !KINDS.some((kind) => kind.id === id));
+const undrawn = KINDS.filter((kind) => !drawnIds.includes(kind.id)).map((kind) => kind.id);
+if (unknown.length > 0 || undrawn.length > 0) {
+	throw new Error(
+		`Day 9: peppers.json and KINDS don't match. Not in KINDS: ${unknown.join(", ") || "none"}. Not in the PSD: ${undrawn.join(", ") || "none"}.`,
+	);
+}
+
+const percent = (value: number, of: number) => `${((value / of) * 100).toFixed(3)}%`;
+const peppers = layout.peppers.map((pepper) => {
+	const kind = kinds.find((each) => each.id === pepper.id);
+	if (!kind) {
+		throw new Error(`Day 9: no row in KINDS for "${pepper.id}".`);
+	}
+	const [boxX, boxY, boxWidth, boxHeight] = pepper.box as [number, number, number, number];
+	const [hitX, hitY, hitWidth, hitHeight] = pepper.hit as [number, number, number, number];
+	return {
+		kind,
+		whole: artFor(pepper.id),
+		bitten: artFor(`${pepper.id}-bitten`),
+		// The button covers the pepper itself; the art (with its shadow) hangs off it
+		style: `left: ${percent(hitX, CANVAS_WIDTH)}; top: ${percent(hitY, CANVAS_HEIGHT)}; width: ${percent(hitWidth, CANVAS_WIDTH)}; height: ${percent(hitHeight, CANVAS_HEIGHT)};`,
+		artStyle: `left: ${percent(boxX - hitX, hitWidth)}; top: ${percent(boxY - hitY, hitHeight)}; width: ${percent(boxWidth, hitWidth)}; height: ${percent(boxHeight, hitHeight)};`,
+		// In canvas px, for shuffling the peppers around on load
+		hit: `${hitX} ${hitY} ${hitWidth} ${hitHeight}`,
+		box: `${boxX} ${boxY} ${boxWidth} ${boxHeight}`,
+		// Where Tybalt can hide behind this pepper, from its top left corner, if it's wide enough
+		hide: pepper.hide
+			? `${(pepper.hide[0] ?? 0) - hitX} ${(pepper.hide[1] ?? 0) - hitY}`
+			: undefined,
+	};
+});
+
+// Tybalt, as a tiny sprite drawn on the same 4px grid: o is his outline, c is cream, e is an eye, n is his nose
+const TYBALT = [
+	"..o......o..",
+	".oco....oco.",
+	".occoooocco.",
+	".occccccccco",
+	".oceccccecco",
+	".occcnnccco.",
+	"..occcccco..",
+	"..occcccco..",
+	".occcccccco.",
+	".occcccccco",
+	"..ooooooooo.",
+];
+const SPRITE_COLORS: Record<string, string> = {
+	o: "#8a5a44",
+	c: "#fff5d8",
+	e: "#1b1f27",
+	n: "#ff2e93",
+};
+const tybaltPixels = TYBALT.flatMap((row, y) =>
+	[...row].flatMap((cell, x) => {
+		const fill = SPRITE_COLORS[cell];
+		return fill ? [{ x, y, fill }] : [];
+	}),
+);
+// He's 12 art pixels wide, and the page hides him behind a random pepper on load
+const tybaltStyle = `--wwo-cat-size: ${percent(12 * layout.grid, CANVAS_WIDTH)};`;
+---
+
+<Day
+	day={9}
+	description="Eleven pixelated peppers on butcher paper, from bell to ghost pepper. Every bite adds up, and the page wobbles harder the more you eat."
+	fonts={["Silkscreen"]}
+>
+	<main
+		class="page"
+		data-sounds={JSON.stringify(SOUNDS)}
+		data-hottest={HOTTEST}
+		data-whole-table={WHOLE_TABLE}
+	>
+		<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+			<filter id="wobble" x="-6%" y="-6%" width="112%" height="112%">
+				<feTurbulence
+					class="wobble__noise"
+					type="fractalNoise"
+					baseFrequency="0.01 0.05"
+					numOctaves="2"
+					seed="9"
+				/>
+				<feDisplacementMap
+					class="wobble__strength"
+					in="SourceGraphic"
+					scale="0"
+					xChannelSelector="R"
+					yChannelSelector="G"
+				/>
+			</filter>
+		</svg>
+
+		<button class="mute" type="button" aria-pressed="false" aria-label="Mute">
+			<svg viewBox="0 0 12 12" shape-rendering="crispEdges" aria-hidden="true">
+				<path class="mute__body" d="M1 4h2V3h1V2h1v8H4V9H3V8H1z" />
+				<path class="mute__waves" d="M7 5h1v2H7zM9 3h1v6H9z" />
+				<path
+					class="mute__off"
+					d="M7 4h1v1H7zM8 5h1v1H8zM9 6h1v1H9zM10 7h1v1h-1zM10 4h1v1h-1zM9 5h1v1H9zM8 6h1v1H8zM7 7h1v1H7z"
+				/>
+			</svg>
+		</button>
+
+		<header class="masthead">
+			<h1>The Scoville table</h1>
+			<p class="readout" aria-live="polite">Hover a pepper. Tap to take a bite.</p>
+			<p class="total" role="status">0 SHU eaten</p>
+		</header>
+
+		<div
+			class="board"
+			data-canvas={`${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+			style={`aspect-ratio: ${CANVAS_WIDTH} / ${CANVAS_HEIGHT};`}
+		>
+			<Image
+				class="board__paper"
+				src={paper}
+				alt=""
+				widths={[640, 1280]}
+				sizes="(width < 900px) 100vw, 60vw"
+			/>
+			{peppers.map((pepper) => (
+	<button
+		class="pepper"
+		type="button"
+		data-kind={pepper.kind.id}
+		data-name={pepper.kind.name}
+		data-range={pepper.kind.range}
+		data-high={pepper.kind.high}
+		data-hit={pepper.hit}
+		data-box={pepper.box}
+		data-hide={pepper.hide}
+		aria-label={`Bite the ${pepper.kind.name.toLowerCase()}, ${pepper.kind.spokenRange}`}
+		style={pepper.style}
+	>
+		<img
+			class="pepper__art pepper__art--whole"
+			src={pepper.whole.src}
+			width={pepper.whole.width}
+			height={pepper.whole.height}
+			alt=""
+			style={pepper.artStyle}
+		/>
+		<img
+			class="pepper__art pepper__art--bitten"
+			src={pepper.bitten.src}
+			width={pepper.bitten.width}
+			height={pepper.bitten.height}
+			alt=""
+			loading="lazy"
+			style={pepper.artStyle}
+		/>
+	</button>
+))}
+			<HiddenCat cat="tybalt" day={9} style={tybaltStyle}>
+				<svg class="sprite" viewBox="0 0 12 11" shape-rendering="crispEdges" aria-hidden="true">
+					{tybaltPixels.map((pixel) => <rect x={pixel.x} y={pixel.y} width="1" height="1" fill={pixel.fill} />)}
+				</svg>
+			</HiddenCat>
+		</div>
+		<script is:inline>
+			// Shuffle the peppers across the paper on every load. It runs right here, before the
+			// page is drawn, so the Photoshop layout never flashes up first.
+			(() => {
+				const board = document.querySelector(".board");
+				const [canvasWidth, canvasHeight] = board.dataset.canvas.split(" ").map(Number);
+				const EDGE = 16; // px kept clear around the paper's edge
+				const GAP = 10; // px kept clear between peppers, shadows included
+				const STEP = 8; // px between the spots checked for each pepper
+				const SPOTS_TO_COMPARE = 6; // open spots picked at random for each pepper; the roomiest wins
+				const MOST_RESTARTS = 30; // whole layouts tried before keeping the Photoshop one
+
+				// Each pepper's art, shadow and all, and where its button sits on that art
+				const peppers = [...board.querySelectorAll(".pepper")].map((button) => {
+					const [hitX, hitY] = button.dataset.hit.split(" ").map(Number);
+					const [boxX, boxY, width, height] = button.dataset.box.split(" ").map(Number);
+					return { button, width, height, buttonX: hitX - boxX, buttonY: hitY - boxY };
+				});
+				// Biggest first, while there's still room for them
+				peppers.sort((a, b) => b.width * b.height - a.width * a.height);
+
+				function touching(a, b) {
+					return (
+						a.x < b.x + b.width + GAP &&
+						b.x < a.x + a.width + GAP &&
+						a.y < b.y + b.height + GAP &&
+						b.y < a.y + a.height + GAP
+					);
+				}
+
+				function distance(a, b) {
+					const across = Math.max(b.x - (a.x + a.width), a.x - (b.x + b.width), 0);
+					const down = Math.max(b.y - (a.y + a.height), a.y - (b.y + b.height), 0);
+					return Math.hypot(across, down);
+				}
+
+				// How much room a spot has: its distance to the nearest pepper or edge
+				function roomAround(spot, placed) {
+					const edges = [
+						spot.x,
+						spot.y,
+						canvasWidth - (spot.x + spot.width),
+						canvasHeight - (spot.y + spot.height),
+					];
+					return Math.min(...edges, ...placed.map((other) => distance(spot, other)));
+				}
+
+				// Every spot on the paper where this pepper fits without touching another
+				function openSpots(pepper, placed) {
+					const spots = [];
+					const offsetX = Math.random() * STEP;
+					const offsetY = Math.random() * STEP;
+					for (let y = EDGE + offsetY; y <= canvasHeight - EDGE - pepper.height; y += STEP) {
+						for (let x = EDGE + offsetX; x <= canvasWidth - EDGE - pepper.width; x += STEP) {
+							const spot = { pepper, x, y, width: pepper.width, height: pepper.height };
+							if (!placed.some((other) => touching(spot, other))) {
+								spots.push(spot);
+							}
+						}
+					}
+					return spots;
+				}
+
+				function layOut() {
+					const placed = [];
+					for (const pepper of peppers) {
+						const spots = openSpots(pepper, placed);
+						if (spots.length === 0) {
+							return null;
+						}
+						// A few open spots at random, and the one with the most room around it
+						let best = null;
+						let bestRoom = -1;
+						for (let i = 0; i < SPOTS_TO_COMPARE; i++) {
+							const spot = spots[Math.floor(Math.random() * spots.length)];
+							const room = roomAround(spot, placed);
+							if (room > bestRoom) {
+								best = spot;
+								bestRoom = room;
+							}
+						}
+						placed.push(best);
+					}
+					return placed;
+				}
+
+				let layout = null;
+				for (let restart = 0; restart < MOST_RESTARTS && !layout; restart++) {
+					layout = layOut();
+				}
+				if (!layout) {
+					return;
+				}
+				for (const spot of layout) {
+					const left = ((spot.x + spot.pepper.buttonX) / canvasWidth) * 100;
+					const top = ((spot.y + spot.pepper.buttonY) / canvasHeight) * 100;
+					spot.pepper.button.style.left = `${left.toFixed(3)}%`;
+					spot.pepper.button.style.top = `${top.toFixed(3)}%`;
+				}
+			})();
+		</script>
+
+		<div class="side">
+			<table class="scoville">
+				<caption>
+					Scoville heat units
+				</caption>
+				<thead>
+					<tr>
+						<th scope="col">Pepper</th>
+						<th scope="col">SHU</th>
+						<th scope="col"><span class="visually-hidden">Heat</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{kinds.map((kind) => (
+	<tr data-kind={kind.id}>
+		<th scope="row">
+			<button
+				class="row-button"
+				type="button"
+				data-kind={kind.id}
+				data-name={kind.name}
+				data-range={kind.range}
+				data-high={kind.high}
+				aria-label={`Bite the ${kind.name.toLowerCase()}, ${kind.spokenRange}`}
+			>
+				{kind.name}
+			</button>
+		</th>
+		<td class="scoville__range">{kind.range}</td>
+		<td class="scoville__bar" aria-hidden="true">
+			<span style={`--heat: ${kind.heat}`} />
+		</td>
+	</tr>
+))}
+				</tbody>
+			</table>
+			<button class="restock" type="button" hidden>Restock the table</button>
+		</div>
+	</main>
+</Day>
+
+<script>
+	// The parts of the page we need
+	const page = document.querySelector(".page") as HTMLElement;
+	const readout = page.querySelector(".readout") as HTMLElement;
+	const totalLine = page.querySelector(".total") as HTMLElement;
+	const noise = page.querySelector(".wobble__noise") as SVGFETurbulenceElement;
+	const strength = page.querySelector(".wobble__strength") as SVGFEDisplacementMapElement;
+	const peppers = [...page.querySelectorAll<HTMLButtonElement>(".pepper")];
+	const rowButtons = [...page.querySelectorAll<HTMLButtonElement>(".row-button")];
+	const rows = [...page.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+	const restock = page.querySelector(".restock") as HTMLButtonElement;
+	const board = page.querySelector(".board") as HTMLElement;
+	const tybalt = board.querySelector("wwo-cat") as HTMLElement;
+	const tybaltButton = tybalt.querySelector(".wwo-cat") as HTMLButtonElement;
+	const muteButton = page.querySelector(".mute") as HTMLButtonElement;
+	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+	// How the wobble behaves
+	const MOST_WOBBLE = 44; // px the page gets pushed around once every pepper is eaten
+	const RISE = 0.14; // share of the way to the new wobble each frame, going up
+	const SETTLE = 0.04; // and coming back down, which takes longer
+	const TILT_LEAST = 2; // degrees a bitten pepper rolls over, one way or the other
+	const TILT_MOST = 6;
+	const BOIL_SPEED = 1.2; // how fast the ripples churn at rest
+	const BOIL_EXTRA = 5; // and how much faster at the very top
+
+	// How it sounds
+	const VOLUME = 0.6; // how loud everything is, from 0 to 1
+	const SPICY_AT = 8000; // Scoville units bitten, all added up, before the spicy sound plays
+	const MUTE_STORAGE_KEY = "wwo:scoville-muted";
+	const soundUrls: Record<string, string> = JSON.parse(page.dataset.sounds ?? "{}");
+	const biteSounds = Object.keys(soundUrls).filter((name) => /^bite(-|$)/.test(name));
+
+	// What's going on right now
+	let wobble = 0;
+	let ripplePhase = 0;
+	let lastFrame = 0;
+	let running = false;
+	let scovilles = 0; // everything bitten so far, added up
+	let saidSpicy = false;
+	let lastBite = "";
+	let tybaltBehind = ""; // which pepper he's hiding behind
+
+	// The wobble follows everything bitten so far, added up, and only a restock cools it down
+	const HOTTEST = Number(page.dataset.hottest ?? 1); // the hottest single pepper
+	const WHOLE_TABLE = Number(page.dataset.wholeTable ?? 1); // every pepper, added up
+	const UP_TO_HOTTEST = 0.6; // share of the wobble you can reach with one pepper
+	const REALLY_WOBBLY = 0.55; // past this, the restock button comes to the rescue (a ghost pepper does it)
+	const RESTOCK_TEXT = "Restock the table";
+	const RESCUE_TEXT = "Restock the table and drink some milk!";
+
+	function wantedWobble() {
+		// Scoville runs on powers of ten, so up to the hottest pepper it's measured in digits,
+		// curved so a few mild ones stay gentle
+		const digits = Math.min(1, Math.log10(scovilles + 1) / Math.log10(HOTTEST + 1));
+		// Past that, every bit more counts until the whole table's been eaten
+		const beyond = Math.min(1, Math.max(0, (scovilles - HOTTEST) / (WHOLE_TABLE - HOTTEST)));
+		return UP_TO_HOTTEST * digits ** 2.2 + (1 - UP_TO_HOTTEST) * beyond;
+	}
+
+	// One frame: ease toward the wanted wobble and churn the ripples
+	function wobbleFrame(now: number) {
+		const seconds = Math.min((now - lastFrame) / 1000, 0.1);
+		lastFrame = now;
+
+		const wanted = wantedWobble();
+		const ease = wanted > wobble ? RISE : SETTLE;
+		wobble += (wanted - wobble) * ease;
+		if (wanted === 0 && wobble < 0.003) {
+			wobble = 0;
+		}
+
+		ripplePhase += seconds * (BOIL_SPEED + BOIL_EXTRA * wobble);
+		showWobble();
+
+		if (wobble > 0 || wanted > 0) {
+			requestAnimationFrame(wobbleFrame);
+		} else {
+			running = false;
+		}
+	}
+
+	function startWobbling() {
+		if (reducedMotion.matches) {
+			return;
+		}
+		if (!running) {
+			running = true;
+			lastFrame = performance.now();
+			requestAnimationFrame(wobbleFrame);
+		}
+	}
+
+	function showWobble() {
+		const across = 0.008 + 0.004 * Math.sin(ripplePhase * 1.3);
+		const down = 0.045 + 0.02 * Math.sin(ripplePhase * 2.1);
+		noise.setAttribute("baseFrequency", `${across.toFixed(4)} ${down.toFixed(4)}`);
+		strength.setAttribute("scale", (wobble * MOST_WOBBLE).toFixed(1));
+		page.classList.toggle("is-wobbling", wobble > 0);
+	}
+
+	// ---------------------------------------------------------------- Sound
+
+	let audio: AudioContext | null = null;
+	let masterVolume: GainNode | null = null;
+	let muted = readMuted();
+	const decoded = new Map<string, Promise<AudioBuffer | null>>();
+
+	// The files download with the page, so the first bite isn't silent
+	const downloaded = new Map(
+		Object.entries(soundUrls).map(([name, url]) => [
+			name,
+			fetch(url)
+				.then((response) => response.arrayBuffer())
+				.catch(() => null),
+		]),
+	);
+
+	// The browser only allows sound after a click, so the sound starts with the first bite
+	function startAudio() {
+		if (!audio) {
+			audio = new AudioContext();
+			masterVolume = audio.createGain();
+			masterVolume.gain.value = muted ? 0 : VOLUME;
+			masterVolume.connect(audio.destination);
+			for (const name of downloaded.keys()) {
+				decodeSound(name);
+			}
+		}
+		if (audio.state === "suspended") {
+			audio.resume();
+		}
+		return audio;
+	}
+
+	// A sound that won't load or decode just stays quiet
+	function decodeSound(name: string) {
+		const context = audio;
+		const file = downloaded.get(name);
+		if (!context || !file) {
+			return;
+		}
+		decoded.set(
+			name,
+			file.then((bytes) => (bytes ? context.decodeAudioData(bytes) : null)).catch(() => null),
+		);
+	}
+
+	// Plays as soon as it's ready, which is right away after the first bite
+	async function playSound(name: string) {
+		const context = startAudio();
+		const buffer = await decoded.get(name);
+		if (!masterVolume || !buffer) {
+			return;
+		}
+		const source = context.createBufferSource();
+		source.buffer = buffer;
+		source.connect(masterVolume);
+		source.start();
+	}
+
+	// A different crunch from last time, picked at random
+	function playBite() {
+		const choices = biteSounds.filter((name) => name !== lastBite);
+		const pick = choices[Math.floor(Math.random() * choices.length)] ?? biteSounds[0];
+		if (pick) {
+			lastBite = pick;
+			playSound(pick);
+		}
+	}
+
+	// The speaker button mutes everything. It's remembered in this browser.
+	function readMuted() {
+		try {
+			return localStorage.getItem(MUTE_STORAGE_KEY) === "true";
+		} catch {
+			return false;
+		}
+	}
+
+	function setMuted(next: boolean) {
+		muted = next;
+		try {
+			localStorage.setItem(MUTE_STORAGE_KEY, String(next));
+		} catch {
+			// Storage blocked (private window, etc.): muting still works for this visit
+		}
+		muteButton.setAttribute("aria-pressed", String(next));
+		if (audio && masterVolume) {
+			masterVolume.gain.setTargetAtTime(next ? 0 : VOLUME, audio.currentTime, 0.01);
+		}
+	}
+
+	// ---------------------------------------------------------------- Peppers
+
+	// Light up the pepper and its row in the table, and say what it is
+	function pickKind(button: HTMLButtonElement | null) {
+		const kind = button?.dataset.kind ?? "";
+		for (const pepper of peppers) {
+			pepper.classList.toggle("is-lit", pepper.dataset.kind === kind);
+		}
+		for (const row of rows) {
+			row.classList.toggle("is-lit", row.dataset.kind === kind);
+		}
+		if (button) {
+			readout.textContent = `${button.dataset.name}: ${button.dataset.range} SHU`;
+		}
+	}
+
+	function pepperFor(button: HTMLButtonElement) {
+		return peppers.find((pepper) => pepper.dataset.kind === button.dataset.kind);
+	}
+
+	// Once it's really wobbly, the restock button floats over everything, and there's milk
+	function showRestock() {
+		const rescue = wantedWobble() >= REALLY_WOBBLY && !reducedMotion.matches;
+		restock.classList.toggle("is-rescue", rescue);
+		restock.textContent = rescue ? RESCUE_TEXT : RESTOCK_TEXT;
+	}
+
+	// Pointing at a pepper, or tabbing to it, just says what it is
+	function touchPepper(button: HTMLButtonElement) {
+		pickKind(button);
+	}
+
+	function letGo() {
+		pickKind(null);
+	}
+
+	function showTotal() {
+		totalLine.textContent = `${scovilles.toLocaleString("en-US")} SHU eaten`;
+	}
+
+	// A bite takes half the pepper, and its heat adds to everything eaten so far
+	function bitePepper(button: HTMLButtonElement) {
+		const pepper = pepperFor(button);
+		startAudio();
+		if (pepper && !pepper.classList.contains("is-bitten")) {
+			pepper.classList.add("is-bitten");
+			tiltPepper(pepper);
+			playBite();
+			scovilles += Number(button.dataset.high ?? 0);
+			if (!reducedMotion.matches) {
+				pepper.animate(
+					[{ scale: "1" }, { scale: "1.08 0.92" }, { scale: "0.97 1.03" }, { scale: "1" }],
+					{ duration: 260, easing: "ease-out" },
+				);
+			}
+			restock.hidden = false;
+			showRestock();
+			if (pepper.dataset.kind === tybaltBehind) {
+				revealTybalt();
+			}
+			// Once the bites add up, it's officially spicy
+			if (scovilles >= SPICY_AT && !saidSpicy) {
+				saidSpicy = true;
+				window.setTimeout(() => playSound("spicy"), 250);
+			}
+		}
+		pickKind(button);
+		readout.textContent = `${button.dataset.name}, bitten.`;
+		showTotal();
+		startWobbling();
+	}
+
+	// A bitten pepper rolls over a little, either way
+	function tiltPepper(pepper: HTMLButtonElement) {
+		const direction = Math.random() < 0.5 ? -1 : 1;
+		const degrees = TILT_LEAST + Math.random() * (TILT_MOST - TILT_LEAST);
+		pepper.style.rotate = `${(direction * degrees).toFixed(1)}deg`;
+	}
+
+	for (const button of [...peppers, ...rowButtons]) {
+		button.addEventListener("pointerenter", () => touchPepper(button));
+		button.addEventListener("pointerleave", letGo);
+		button.addEventListener("focus", () => touchPepper(button));
+		button.addEventListener("blur", letGo);
+		button.addEventListener("click", () => bitePepper(button));
+	}
+
+	// ---------------------------------------------------------------- Tybalt
+
+	// He hides behind a random pepper that's wide enough, and can't be found until it's bitten
+	function hideTybalt() {
+		const hidingPlaces = peppers.filter((pepper) => pepper.dataset.hide);
+		const pick = hidingPlaces[Math.floor(Math.random() * hidingPlaces.length)];
+		if (!pick) {
+			return;
+		}
+		// His spot is measured from the pepper's corner, wherever the pepper landed
+		const [canvasWidth = 1, canvasHeight = 1] = (board.dataset.canvas ?? "").split(" ").map(Number);
+		const [fromLeft = 0, fromTop = 0] = (pick.dataset.hide ?? "").split(" ").map(Number);
+		const left = Number.parseFloat(pick.style.left) + (fromLeft / canvasWidth) * 100;
+		const top = Number.parseFloat(pick.style.top) + (fromTop / canvasHeight) * 100;
+		tybaltBehind = pick.dataset.kind ?? "";
+		tybaltButton.style.left = `${left.toFixed(3)}%`;
+		tybaltButton.style.top = `${top.toFixed(3)}%`;
+		tybalt.inert = true;
+		board.classList.remove("tybalt-is-out");
+	}
+
+	function revealTybalt() {
+		tybalt.inert = false;
+		board.classList.add("tybalt-is-out");
+	}
+
+	hideTybalt();
+
+	// Fresh peppers all round, and Tybalt finds somewhere new
+	restock.addEventListener("click", () => {
+		for (const pepper of peppers) {
+			pepper.classList.remove("is-bitten");
+			pepper.style.rotate = "";
+		}
+		hideTybalt();
+		restock.hidden = true;
+		scovilles = 0;
+		saidSpicy = false;
+		showTotal();
+		showRestock();
+		startWobbling();
+		readout.textContent = "Restocked. Hover a pepper. Tap to take a bite.";
+	});
+
+	muteButton.setAttribute("aria-pressed", String(muted));
+	muteButton.addEventListener("click", () => setMuted(!muted));
+
+	// Tybalt was under there the whole time
+	page.addEventListener("wwo:cat-found", () => {
+		readout.textContent = "Tybalt: 0 SHU. Mild. Allegedly.";
+	});
+</script>
+
+<style is:global>
+	/* Own palette and fonts every day. Black and pink show up somewhere. */
+	:root {
+		--bg: #0b0b0c;
+		--fg: #f4f6f4;
+		--dim: #8f9cad;
+		--accent: #ff2e93;
+	}
+	body {
+		margin: 0;
+		min-block-size: 100dvh;
+		background: var(--bg);
+		color: var(--fg);
+		font-family: var(--font-silkscreen);
+	}
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.defs {
+		position: absolute;
+	}
+
+	.page {
+		position: relative;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+		grid-template-areas:
+			"masthead masthead"
+			"board side";
+		align-items: start;
+		gap: 20px 32px;
+		max-inline-size: 1440px;
+		margin-inline: auto;
+		padding: 28px 16px 64px;
+	}
+	/* The heading, the paper and the table wobble; the buttons you need to get out stay put */
+	.is-wobbling :is(.masthead, .board, .scoville) {
+		filter: url(#wobble);
+	}
+
+	.masthead {
+		grid-area: masthead;
+		text-align: center;
+	}
+	h1 {
+		margin: 0;
+		font-size: clamp(24px, 4.4vw, 48px);
+		font-weight: 700;
+		line-height: 1;
+		letter-spacing: 0.02em;
+		color: var(--accent);
+		text-transform: uppercase;
+	}
+	.readout {
+		min-block-size: 1.3em;
+		margin: 12px 0 0;
+		font-size: clamp(13px, 1.6vw, 18px);
+		line-height: 1.3;
+		text-wrap: balance;
+	}
+
+	.total {
+		margin: 4px 0 0;
+		font-size: clamp(11px, 1.2vw, 14px);
+		color: var(--accent);
+	}
+
+	/* ------------------------------------------------ The paper and the peppers */
+
+	.board {
+		grid-area: board;
+		position: relative;
+		justify-self: end;
+		container: board / inline-size;
+		inline-size: min(100%, 1280px, calc((100dvh - 220px) * 4 / 3));
+		min-inline-size: min(100%, 300px);
+		border: 4px solid var(--fg);
+		box-shadow: 8px 8px 0 var(--accent);
+	}
+	.board__paper {
+		position: absolute;
+		inset: 0;
+		inline-size: 100%;
+		block-size: 100%;
+	}
+
+	.pepper {
+		position: absolute;
+		padding: 0;
+		border: 0;
+		background: none;
+		cursor: pointer;
+		transition: rotate 0.25s ease-out;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pepper {
+			transition: none;
+		}
+	}
+	.pepper__art {
+		position: absolute;
+		max-inline-size: none;
+		pointer-events: none;
+	}
+	/* Tybalt sits between a pepper's bitten art and its whole art, so only the bite shows him */
+	.pepper__art--bitten {
+		z-index: 1;
+	}
+	.board .wwo-cat {
+		z-index: 2;
+		pointer-events: none;
+	}
+	.pepper__art--whole {
+		z-index: 3;
+	}
+	.tybalt-is-out .wwo-cat {
+		pointer-events: auto;
+	}
+	/* Finding him on an earlier visit shouldn't give away where he is now */
+	.board:not(.tybalt-is-out) .wwo-cat__found {
+		display: none;
+	}
+	/* Once the board is bigger than the art, keep the pixels square */
+	@container board (width > 1280px) {
+		.pepper__art {
+			image-rendering: pixelated;
+		}
+	}
+	.pepper__art--bitten,
+	.pepper.is-bitten .pepper__art--whole {
+		visibility: hidden;
+	}
+	.pepper.is-bitten .pepper__art--bitten {
+		visibility: visible;
+	}
+	.pepper.is-lit,
+	.pepper:focus-visible {
+		outline: 3px dashed var(--accent);
+		outline-offset: 4px;
+	}
+	.sprite {
+		display: block;
+		inline-size: 100%;
+		block-size: auto;
+	}
+
+	/* ------------------------------------------------ The table */
+
+	.side {
+		grid-area: side;
+	}
+	.scoville {
+		inline-size: 100%;
+		border-collapse: collapse;
+		font-size: 12px;
+		line-height: 1.2;
+	}
+	.scoville caption {
+		padding-bottom: 8px;
+		font-size: 14px;
+		font-weight: 700;
+		text-align: start;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.scoville th,
+	.scoville td {
+		padding: 0;
+		border-bottom: 2px dotted #2c3038;
+		text-align: start;
+		font-weight: 400;
+	}
+	.scoville thead th {
+		padding-bottom: 4px;
+		font-size: 10px;
+		color: var(--dim);
+		text-transform: uppercase;
+	}
+	.row-button {
+		inline-size: 100%;
+		padding: 7px 8px 7px 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		color: inherit;
+		text-align: start;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.row-button:focus-visible {
+		outline: 3px dashed var(--accent);
+		outline-offset: -1px;
+	}
+	.scoville__range {
+		padding-right: 10px;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+		color: var(--dim);
+	}
+	.scoville__bar {
+		inline-size: 26%;
+	}
+	/* Chunky blocks, filled as far as the pepper is hot */
+	.scoville__bar span {
+		display: block;
+		inline-size: calc(var(--heat) * 100%);
+		block-size: 10px;
+		background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px);
+	}
+	tr.is-lit .row-button,
+	tr.is-lit .scoville__range {
+		color: var(--bg);
+		background: var(--accent);
+	}
+	tr.is-lit .row-button {
+		padding-left: 6px;
+	}
+
+	.restock {
+		margin-top: 16px;
+		padding: 8px 12px;
+		border: 3px solid var(--fg);
+		background: none;
+		font: inherit;
+		font-size: 12px;
+		color: var(--fg);
+		text-transform: uppercase;
+		cursor: pointer;
+	}
+	.restock:hover,
+	.restock:focus-visible {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+	.mute {
+		position: absolute;
+		top: 16px;
+		left: 16px;
+		inline-size: 36px;
+		block-size: 36px;
+		padding: 6px;
+		border: 3px solid var(--fg);
+		background: none;
+		color: var(--fg);
+		cursor: pointer;
+	}
+	.mute:hover,
+	.mute:focus-visible {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+	.mute svg {
+		display: block;
+		fill: currentColor;
+	}
+	.mute__off,
+	.mute[aria-pressed="true"] .mute__waves {
+		display: none;
+	}
+	.mute[aria-pressed="true"] .mute__off {
+		display: inline;
+	}
+	.restock[hidden] {
+		display: none;
+	}
+	.restock.is-rescue {
+		position: fixed;
+		bottom: 56px;
+		left: 50%;
+		z-index: 10;
+		max-inline-size: calc(100vw - 32px);
+		margin: 0;
+		padding: 14px 20px;
+		translate: -50% 0;
+		border-color: var(--fg);
+		background: var(--accent);
+		font-size: clamp(13px, 1.8vw, 18px);
+		font-weight: 700;
+		color: var(--bg);
+		box-shadow: 6px 6px 0 var(--fg);
+		animation: rescue 0.9s ease-in-out infinite alternate;
+	}
+	.restock.is-rescue:hover,
+	.restock.is-rescue:focus-visible {
+		background: var(--fg);
+		color: var(--bg);
+	}
+	@keyframes rescue {
+		to {
+			scale: 1.06;
+		}
+	}
+
+	/* ------------------------------------------------ Smaller screens */
+
+	@media (width < 900px) {
+		.page {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-areas:
+				"masthead"
+				"board"
+				"side";
+			justify-items: center;
+		}
+		.board {
+			justify-self: center;
+			inline-size: min(100%, 1280px);
+		}
+		.side {
+			inline-size: 100%;
+			max-inline-size: 520px;
+		}
+	}
+</style>

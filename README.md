@@ -14,6 +14,7 @@ I'm making a small, weird website every day of October, following the [Weird Web
 | `npm run font:typed` | Print the typewriter flaw table; add `-- --write` to regenerate the font (needs [uv](https://docs.astral.sh/uv/)) |
 | `npm run leaves:pothos` | List the pothos leaves in day 2's room SVG that would get a new outline; add `-- --write` to save (needs uv) |
 | `npm run photos:fake` | List day 3's listing crops and whether their source photos are in `design/day-3/`; add `-- --write` to save them (needs uv) |
+| `npm run peppers:psd` | List the peppers in day 9's Photoshop file (`design/day-9/Peppers.psd`); add `-- --write` to save their art, bites, shadows and layout to `src/assets/09/` (needs uv) |
 | `npm run icons` | List the favicon files built from `src/assets/favicon-eye.png`; add `-- --write` to save them to `public/` |
 | `npm run check` | `astro check` plus Biome |
 
@@ -27,4 +28,4 @@ Restart `npm run dev` when `new-day` adds a font to `src/fonts.ts` (Astro only r
 - [Sharing](docs/sharing.md): head tags, the favicon and each day's generated preview card.
 - [Formatting](docs/formatting.md): Biome, and the lint rules that are off on purpose.
 - [Dev shortcuts](docs/dev-shortcuts.md): the `?jump=` parameters and finding which file renders an element.
-- Days: [2, Spark](docs/days/02-spark.md) · [3, Fake](docs/days/03-fake.md) · [4, Plastic](docs/days/04-plastic.md) · [5, Sheet](docs/days/05-sheet.md) · [6, Analog](docs/days/06-analog.md) · [7, Organic](docs/days/07-organic.md) · [8, Skeumorphism](docs/days/08-skeumorphism.md). A day with enough moving parts gets its own file in `docs/days/`, named after its page.
+- Days: [2, Spark](docs/days/02-spark.md) · [3, Fake](docs/days/03-fake.md) · [4, Plastic](docs/days/04-plastic.md) · [5, Sheet](docs/days/05-sheet.md) · [6, Analog](docs/days/06-analog.md) · [7, Organic](docs/days/07-organic.md) · [8, Skeumorphism](docs/days/08-skeumorphism.md) · [9, Spicy](docs/days/09-spicy.md). A day with enough moving parts gets its own file in `docs/days/`, named after its page.

@@ -14,6 +14,7 @@
 		"leaves:pothos": "uv run scripts/reshape-pothos.py",
 		"format": "biome format --write",
 		"photos:fake": "uv run scripts/crop-listings.py",
+		"peppers:psd": "uv run scripts/peppers-psd.py",
 		"icons": "node scripts/favicon.mjs"
 	},
 	"dependencies": {

@@ -23,4 +23,8 @@ export const CARDS: Partial<Record<number, CardText>> = {
 	6: { title: "Scope", line: "Twist the knobs until the phosphor grows ears." },
 	7: { title: "Blob", line: "One cell, no brain, and it still finds the oats first." },
 	8: { title: "Tally", line: "Every sum on paper tape, and something’s hiding in the scraps." },
+	9: {
+		title: "The Scoville Table",
+		line: "Every bite adds up. Eat them all and the page melts.",
+	},
 };
