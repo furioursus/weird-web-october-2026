@@ -27,4 +27,8 @@ export const CARDS: Partial<Record<number, CardText>> = {
 		title: "The Scoville Table",
 		line: "Every bite adds up. Eat them all and the page melts.",
 	},
+	10: {
+		title: "Brightpath",
+		line: "They never deleted a redesign. Every one is still under there.",
+	},
 };

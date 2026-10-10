@@ -1,0 +1,1079 @@
+---
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 10: Layers
+
+const ERAS = [
+	{ id: "canvas", depth: 0, tag: "<html>" },
+	{ id: "y1997", depth: 1, tag: "1997 · brightpath.html" },
+	{ id: "y2001", depth: 2, tag: "2001 · table#layout" },
+	{ id: "y2008", depth: 3, tag: "2008 · div.web20" },
+	{ id: "y2014", depth: 4, tag: "2014 · .jumbotron" },
+	{ id: "y2026", depth: 5, tag: "2026 · <main>" },
+];
+const tagFor = (id: string) => ERAS.find((era) => era.id === id)?.tag ?? id;
+const depthFor = (id: string) => ERAS.find((era) => era.id === id)?.depth ?? 0;
+---
+
+<Day
+	day={10}
+	description="A perfectly bland company website. Drag it sideways and every redesign since 1997 is still under there."
+	fonts={["Inter", "Open Sans"]}
+>
+	<div class="stage" id="stage">
+		<div class="stack" id="stack">
+			<section
+				class="layer canvas"
+				style={`--depth: ${depthFor("canvas")}`}
+				aria-label="The bare page"
+			>
+				<span class="tag">{tagFor("canvas")}</span>
+				<p class="canvas__dust">nothing here but dust</p>
+				<div class="canvas__nap">
+					<HiddenCat cat="dante" day={10} size={78} color="#6b4a2f" style="bottom: 0; right: 0;" />
+					<span class="canvas__zzz" aria-hidden="true">z z z</span>
+				</div>
+			</section>
+
+			<section
+				class="layer y1997"
+				style={`--depth: ${depthFor("y1997")}`}
+				aria-label="The 1997 site"
+			>
+				<span class="tag">{tagFor("y1997")}</span>
+				<div class="y1997__marquee">
+					<span>~*~ Welcome to Bright Path's Home Page!!! ~*~ Thanx for stopping by ~*~</span>
+				</div>
+				<h2 class="y1997__title">BRIGHT PATH</h2>
+				<p class="y1997__under">🚧 UNDER CONSTRUCTION 🚧</p>
+				<hr class="y1997__rainbow" />
+				<p>
+					Hi!! This is the official web site of Bright Path. We do consulting and stuff.
+					<span class="y1997__new">NEW!</span>
+				</p>
+				<p>
+					<span class="link">Sign my Guestbook</span>
+					· <span class="link">Cool Links</span> · <span class="link">Webring ⇄</span>
+				</p>
+				<p class="y1997__counter">You are visitor # <span>000417</span></p>
+				<p class="y1997__small">Best viewed in Netscape Navigator 3.0 at 640×480</p>
+			</section>
+
+			<section
+				class="layer y2001"
+				style={`--depth: ${depthFor("y2001")}`}
+				aria-label="The 2001 site"
+			>
+				<span class="tag">{tagFor("y2001")}</span>
+				<div class="y2001__banner">BrightPath Consulting Group, Inc.</div>
+				<div class="y2001__body">
+					<nav class="y2001__nav">
+						<span class="link">» Home</span>
+						<span class="link">» About Us</span>
+						<span class="link">» Services</span>
+						<span class="link">» Our Team</span>
+						<span class="link">» Contact</span>
+					</nav>
+					<div class="y2001__main">
+						<h2>Welcome to our web site!</h2>
+						<p>
+							BrightPath Consulting Group delivers e-business solutions for the new economy. Click
+							on a link at left to learn more about our services.
+						</p>
+						<p class="y2001__spacer" title="spacer.gif">[spacer.gif]</p>
+						<p class="y2001__small">
+							Best viewed in Internet Explorer 5.5 at 800×600 · Last updated 3/14/2001
+						</p>
+					</div>
+				</div>
+			</section>
+
+			<section
+				class="layer y2008"
+				style={`--depth: ${depthFor("y2008")}`}
+				aria-label="The 2008 site"
+			>
+				<span class="tag">{tagFor("y2008")}</span>
+				<header class="y2008__header">
+					<span class="y2008__logo">BrightPath<sup>2.0</sup></span>
+					<span class="y2008__beta">BETA</span>
+				</header>
+				<div class="y2008__hero">
+					<h2>Collaborate. Share. Synergize!</h2>
+					<p>Your team's new social workspace. Now with RSS!</p>
+					<span class="y2008__pill">Sign Up Free!</span>
+				</div>
+				<p class="y2008__cloud">
+					<span style="font-size: 1.6em">synergy</span> <span>mashup</span>
+					<span style="font-size: 1.3em">widgets</span> <span style="font-size: 0.9em">AJAX</span>
+					<span style="font-size: 1.4em">tagging</span> <span>folksonomy</span>
+				</p>
+			</section>
+
+			<section
+				class="layer y2014"
+				style={`--depth: ${depthFor("y2014")}`}
+				aria-label="The 2014 site"
+			>
+				<span class="tag">{tagFor("y2014")}</span>
+				<header class="y2014__nav">
+					<span>BrightPath</span>
+					<span class="y2014__burger" aria-hidden="true">☰</span>
+				</header>
+				<div class="y2014__jumbotron">
+					<h2>We Make Business Simple.</h2>
+					<p>Responsive. Cloud-based. Social.</p>
+					<span class="y2014__button">Learn More</span>
+				</div>
+				<div class="y2014__features">
+					<div>
+						<span class="y2014__icon">📱</span>
+						<h3>Responsive</h3>
+						<p>Looks great on any device.</p>
+					</div>
+					<div>
+						<span class="y2014__icon">☁️</span>
+						<h3>Cloud</h3>
+						<p>Your data, anywhere.</p>
+					</div>
+					<div>
+						<span class="y2014__icon">💬</span>
+						<h3>Social</h3>
+						<p>Like us on Facebook.</p>
+					</div>
+				</div>
+			</section>
+
+			<aside class="floater sticky" style="--depth: 4.5" aria-label="A sticky note">
+				TODO: delete old sites before launch!!
+			</aside>
+
+			<section
+				class="layer y2026"
+				style={`--depth: ${depthFor("y2026")}`}
+				aria-label="The current site"
+			>
+				<span class="tag">{tagFor("y2026")}</span>
+				<header class="y2026__nav">
+					<span class="y2026__logo"><span class="y2026__dot"></span>brightpath</span>
+					<span class="y2026__links">Product · Solutions · Pricing</span>
+					<span class="y2026__cta">Get started</span>
+				</header>
+				<div class="y2026__hero">
+					<h1>The platform for whatever comes next.</h1>
+					<p>Brightpath helps teams align, ship, and grow with clarity.</p>
+					<div class="y2026__buttons">
+						<span class="y2026__cta">Book a demo</span>
+						<button class="y2026__ghost" type="button" data-explode>See how it's built →</button>
+					</div>
+				</div>
+				<p class="y2026__trusted">
+					Trusted by teams at <span>▬▬▬</span> <span>▬▬▬▬</span> <span>▬▬</span> <span>▬▬▬▬▬</span>
+				</p>
+			</section>
+
+			<aside class="floater cookies" id="cookies" style="--depth: 6.2" aria-label="Cookie notice">
+				<p>We use layers to improve your experience.</p>
+				<div>
+					<button type="button" data-explode>Manage layers</button>
+					<button type="button" id="accept-cookies">Accept all</button>
+				</div>
+			</aside>
+		</div>
+	</div>
+
+	<div class="controls">
+		<label for="explode">layers</label>
+		<input type="range" id="explode" min="0" max="100" value="0" />
+		<button type="button" id="flatten" hidden>flatten</button>
+	</div>
+</Day>
+
+<script>
+	const stage = document.getElementById("stage") as HTMLElement;
+	const stack = document.getElementById("stack") as HTMLElement;
+	const slider = document.getElementById("explode") as HTMLInputElement;
+	const flattenButton = document.getElementById("flatten") as HTMLButtonElement;
+	const cookies = document.getElementById("cookies") as HTMLElement;
+	const acceptButton = document.getElementById("accept-cookies") as HTMLButtonElement;
+
+	const DEGREES_PER_PIXEL = 0.25;
+	const MOST_TILT = 70;
+	const FULL_SPREAD_AT = 40;
+	const PRESET_TILT_X = -44;
+	const PRESET_TILT_Y = 26;
+	const DRAG_THRESHOLD = 6;
+	const TWEEN_MS = 900;
+
+	const SEPARATING_LAYERS = 5;
+	const VOLUME = 0.35;
+	const SOUND_STAGGER = 0.045;
+
+	const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+	let tiltX = 0;
+	let tiltY = 0;
+	let tween = 0;
+	let layersApart = 0;
+
+	let audio: AudioContext | null = null;
+	let masterVolume: GainNode | null = null;
+	let noise: AudioBuffer | null = null;
+
+	function getAudio() {
+		if (!audio) {
+			audio = new AudioContext();
+			masterVolume = audio.createGain();
+			masterVolume.gain.value = VOLUME;
+			masterVolume.connect(audio.destination);
+			noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.2), audio.sampleRate);
+			const samples = noise.getChannelData(0);
+			for (let i = 0; i < samples.length; i++) {
+				samples[i] = Math.random() * 2 - 1;
+			}
+		}
+		if (audio.state === "suspended") {
+			audio.resume();
+		}
+		return audio;
+	}
+
+	function playNoise(
+		startAt: number,
+		filterType: BiquadFilterType,
+		frequency: number,
+		volume: number,
+		seconds: number,
+	) {
+		const context = getAudio();
+		const source = context.createBufferSource();
+		source.buffer = noise;
+		const filter = context.createBiquadFilter();
+		filter.type = filterType;
+		filter.frequency.value = frequency;
+		filter.Q.value = 1.2;
+		const envelope = context.createGain();
+		envelope.gain.setValueAtTime(0.0001, startAt);
+		envelope.gain.exponentialRampToValueAtTime(volume, startAt + 0.004);
+		envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + seconds);
+		source
+			.connect(filter)
+			.connect(envelope)
+			.connect(masterVolume as GainNode);
+		source.start(startAt);
+		source.stop(startAt + seconds + 0.02);
+	}
+
+	function playTone(startAt: number, frequency: number, volume: number, seconds: number) {
+		const context = getAudio();
+		const oscillator = context.createOscillator();
+		oscillator.type = "sine";
+		oscillator.frequency.setValueAtTime(frequency, startAt);
+		oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.8, startAt + seconds);
+		const envelope = context.createGain();
+		envelope.gain.setValueAtTime(0.0001, startAt);
+		envelope.gain.exponentialRampToValueAtTime(volume, startAt + 0.005);
+		envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + seconds);
+		oscillator.connect(envelope).connect(masterVolume as GainNode);
+		oscillator.start(startAt);
+		oscillator.stop(startAt + seconds + 0.02);
+	}
+
+	function playPeel(layer: number, startAt: number) {
+		playNoise(startAt, "bandpass", 900 * 1.25 ** layer, 0.5, 0.09);
+		playTone(startAt, 220 * 1.19 ** layer, 0.18, 0.08);
+	}
+
+	function playSettle(layer: number, startAt: number) {
+		playNoise(startAt, "lowpass", 500 * 1.15 ** layer, 0.35, 0.07);
+		playTone(startAt, 140 * 1.12 ** layer, 0.14, 0.06);
+	}
+
+	function countLayersApart(spread: number) {
+		let count = 0;
+		for (let layer = 1; layer <= SEPARATING_LAYERS; layer++) {
+			if (spread >= (layer - 0.5) / SEPARATING_LAYERS) {
+				count = layer;
+			}
+		}
+		return count;
+	}
+
+	function soundLayers(spread: number) {
+		const nowApart = countLayersApart(spread);
+		if (nowApart === layersApart) {
+			return;
+		}
+		const startAt = getAudio().currentTime;
+		let step = 0;
+		if (nowApart > layersApart) {
+			for (let layer = layersApart + 1; layer <= nowApart; layer++) {
+				playPeel(layer, startAt + step * SOUND_STAGGER);
+				step++;
+			}
+		} else {
+			for (let layer = layersApart; layer > nowApart; layer--) {
+				playSettle(layer, startAt + step * SOUND_STAGGER);
+				step++;
+			}
+		}
+		layersApart = nowApart;
+	}
+
+	function spreadFor(x: number, y: number) {
+		return Math.min(1, Math.hypot(x, y) / FULL_SPREAD_AT);
+	}
+
+	function render() {
+		const spread = spreadFor(tiltX, tiltY);
+		stack.style.setProperty("--tilt-x", `${tiltX}deg`);
+		stack.style.setProperty("--tilt-y", `${tiltY}deg`);
+		stack.style.setProperty("--spread", spread.toFixed(3));
+		document.body.classList.toggle("is-flat", spread < 0.01);
+		flattenButton.hidden = spread < 0.01;
+		slider.value = String(Math.round(spread * 100));
+		soundLayers(spread);
+	}
+
+	function clampTilt(degrees: number) {
+		return Math.max(-MOST_TILT, Math.min(MOST_TILT, degrees));
+	}
+
+	function tweenTo(toX: number, toY: number) {
+		cancelAnimationFrame(tween);
+		if (prefersReducedMotion.matches) {
+			tiltX = toX;
+			tiltY = toY;
+			render();
+			return;
+		}
+		const fromX = tiltX;
+		const fromY = tiltY;
+		const start = performance.now();
+		function step(now: number) {
+			const progress = Math.min(1, (now - start) / TWEEN_MS);
+			const eased = 1 - (1 - progress) ** 3;
+			tiltX = fromX + (toX - fromX) * eased;
+			tiltY = fromY + (toY - fromY) * eased;
+			render();
+			if (progress < 1) {
+				tween = requestAnimationFrame(step);
+			}
+		}
+		tween = requestAnimationFrame(step);
+	}
+
+	let pressX = 0;
+	let pressY = 0;
+	let startTiltX = 0;
+	let startTiltY = 0;
+	let pressing = false;
+	let dragging = false;
+
+	stage.addEventListener("pointerdown", (event) => {
+		if (event.button !== 0) {
+			return;
+		}
+		pressing = true;
+		dragging = false;
+		pressX = event.clientX;
+		pressY = event.clientY;
+		startTiltX = tiltX;
+		startTiltY = tiltY;
+	});
+
+	stage.addEventListener("pointermove", (event) => {
+		if (!pressing) {
+			return;
+		}
+		const movedX = event.clientX - pressX;
+		const movedY = event.clientY - pressY;
+		if (!dragging && Math.hypot(movedX, movedY) < DRAG_THRESHOLD) {
+			return;
+		}
+		if (!dragging) {
+			dragging = true;
+			cancelAnimationFrame(tween);
+			stage.setPointerCapture(event.pointerId);
+			document.body.classList.add("is-dragging");
+		}
+		tiltX = clampTilt(startTiltX - movedY * DEGREES_PER_PIXEL);
+		tiltY = clampTilt(startTiltY + movedX * DEGREES_PER_PIXEL);
+		render();
+	});
+
+	function endPress() {
+		pressing = false;
+		document.body.classList.remove("is-dragging");
+	}
+	stage.addEventListener("pointerup", endPress);
+	stage.addEventListener("pointercancel", endPress);
+
+	stage.addEventListener(
+		"click",
+		(event) => {
+			if (dragging) {
+				event.preventDefault();
+				event.stopPropagation();
+				dragging = false;
+			}
+		},
+		true,
+	);
+
+	for (const button of document.querySelectorAll("[data-explode]")) {
+		button.addEventListener("click", () => tweenTo(PRESET_TILT_X, PRESET_TILT_Y));
+	}
+
+	acceptButton.addEventListener("click", () => {
+		cookies.classList.add("is-gone");
+	});
+
+	slider.addEventListener("input", () => {
+		cancelAnimationFrame(tween);
+		const amount = Number(slider.value) / 100;
+		tiltX = PRESET_TILT_X * amount;
+		tiltY = PRESET_TILT_Y * amount;
+		render();
+	});
+
+	flattenButton.addEventListener("click", () => tweenTo(0, 0));
+
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") {
+			tweenTo(0, 0);
+		}
+	});
+	stage.addEventListener("dblclick", () => tweenTo(0, 0));
+
+	render();
+</script>
+
+<style is:global>
+	:root {
+		--accent: #ff2e93;
+		--ink: #0b0b0c;
+		--gap: 170px;
+		--middle: 3;
+	}
+	html,
+	body {
+		margin: 0;
+		block-size: 100%;
+		overflow: hidden;
+		background: var(--ink);
+	}
+
+	.stage {
+		position: fixed;
+		inset: 0;
+		perspective: 2200px;
+		touch-action: none;
+		user-select: none;
+		cursor: grab;
+	}
+	.is-dragging .stage {
+		cursor: grabbing;
+	}
+	.stack {
+		--spread: 0;
+		position: absolute;
+		inset: 0;
+		transform-style: preserve-3d;
+		transform: scale(calc(1 - 0.5 * var(--spread))) rotateX(var(--tilt-x, 0deg))
+			rotateY(var(--tilt-y, 0deg));
+	}
+	.layer,
+	.floater {
+		position: absolute;
+		transform: translateZ(calc((var(--depth) - var(--middle)) * var(--spread) * var(--gap)));
+		backface-visibility: visible;
+	}
+	.layer {
+		inset: 0;
+		overflow: hidden;
+		box-sizing: border-box;
+	}
+	.is-flat .stack,
+	.is-flat .layer,
+	.is-flat .floater {
+		transform: none;
+		transform-style: flat;
+	}
+
+	.tag {
+		position: absolute;
+		inset: 0 auto auto 0;
+		z-index: 10;
+		padding: 0.3em 0.6em;
+		font:
+			12px / 1.2 ui-monospace,
+			monospace;
+		color: var(--accent);
+		background: var(--ink);
+		opacity: var(--spread);
+		pointer-events: none;
+	}
+	.layer {
+		outline: calc(var(--spread) * 2px) solid color-mix(in srgb, var(--accent) 60%, transparent);
+	}
+	body:not(.is-flat) .layer:hover {
+		outline-color: var(--accent);
+		outline-width: 3px;
+	}
+
+	.canvas {
+		background-color: #fff;
+		background-image: conic-gradient(#e8e8e8 25%, #fff 0 50%, #e8e8e8 0 75%, #fff 0);
+		background-size: 24px 24px;
+	}
+	.canvas__dust {
+		position: absolute;
+		inset: 45% 0 auto;
+		margin: 0;
+		text-align: center;
+		font:
+			13px ui-monospace,
+			monospace;
+		color: #b5b5b5;
+	}
+	.canvas__nap {
+		position: absolute;
+		right: 6%;
+		bottom: 5%;
+		inline-size: 78px;
+		block-size: 78px;
+	}
+	.canvas__zzz {
+		position: absolute;
+		right: 60px;
+		bottom: 70px;
+		font:
+			italic 700 15px ui-monospace,
+			monospace;
+		color: #6b4a2f;
+		white-space: nowrap;
+		animation: snooze 3s ease-in-out infinite;
+	}
+	@keyframes snooze {
+		50% {
+			translate: -6px -8px;
+			opacity: 0.5;
+		}
+	}
+
+	.y1997 {
+		padding: 3rem 1.5rem 1.5rem;
+		font:
+			18px / 1.5 "Comic Sans MS",
+			"Comic Sans",
+			"Chalkboard SE",
+			cursive;
+		color: #ffff66;
+		text-align: center;
+		background-color: #000018;
+		background-image:
+			radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+			radial-gradient(1px 1px at 80px 120px, #fff, transparent),
+			radial-gradient(2px 2px at 140px 60px, #ccf, transparent),
+			radial-gradient(1px 1px at 170px 160px, #fff, transparent);
+		background-size: 200px 200px;
+	}
+	.y1997 .link {
+		text-decoration: underline;
+		color: #00ffff;
+	}
+	.y1997__marquee {
+		overflow: hidden;
+		white-space: nowrap;
+		color: #ff66ff;
+	}
+	.y1997__marquee span {
+		display: inline-block;
+		padding-inline-start: 100%;
+		animation: marquee 14s linear infinite;
+	}
+	@keyframes marquee {
+		to {
+			translate: -100%;
+		}
+	}
+	.y1997__title {
+		margin: 0.5em 0 0;
+		font:
+			700 clamp(2.5rem, 9vw, 5rem) / 1 "Times New Roman",
+			Times,
+			serif;
+		color: #ff0;
+		text-shadow: 3px 3px 0 #f0f;
+	}
+	.y1997__under {
+		display: inline-block;
+		padding: 0.3em 1em;
+		color: #000;
+		background: repeating-linear-gradient(45deg, #fc0 0 14px, #000 14px 28px);
+		font-weight: 700;
+	}
+	.y1997__under {
+		text-shadow:
+			0 0 4px #fc0,
+			0 0 4px #fc0;
+	}
+	.y1997__rainbow {
+		block-size: 6px;
+		border: 0;
+		background: linear-gradient(90deg, red, orange, yellow, lime, cyan, blue, violet);
+	}
+	.y1997__new {
+		color: #f00;
+		font-weight: 700;
+		animation: blink 1s steps(1) infinite;
+	}
+	@keyframes blink {
+		50% {
+			visibility: hidden;
+		}
+	}
+	.y1997__counter span {
+		padding: 0 0.3em;
+		font-family: ui-monospace, monospace;
+		color: #0f0;
+		background: #000;
+		border: 2px inset #888;
+		letter-spacing: 0.15em;
+	}
+	.y1997__small {
+		font-size: 12px;
+		color: #aaa;
+	}
+
+	.y2001 {
+		font:
+			12px / 1.45 Verdana,
+			Tahoma,
+			Geneva,
+			sans-serif;
+		color: #000;
+		background: #d4d0c8;
+		padding: 2.5rem 1rem 1rem;
+	}
+	.y2001__banner {
+		padding: 0.6em 0.8em;
+		font:
+			700 clamp(16px, 3vw, 26px) Arial,
+			Helvetica,
+			sans-serif;
+		color: #fff;
+		background: linear-gradient(90deg, #000080, #1084d0);
+	}
+	.y2001__body {
+		display: flex;
+		gap: 0;
+		border: 1px solid #808080;
+		background: #fff;
+	}
+	.y2001__nav {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4em;
+		flex: 0 0 8.5em;
+		padding: 0.8em;
+		background: #eeeeee;
+		border-right: 1px solid #808080;
+	}
+	.y2001 .link {
+		text-decoration: underline;
+		color: #0000ee;
+	}
+	.y2001__main {
+		padding: 0.8em 1.2em;
+	}
+	.y2001__main h2 {
+		margin-top: 0;
+		font:
+			700 15px Arial,
+			Helvetica,
+			sans-serif;
+		color: #000080;
+	}
+	.y2001__spacer {
+		color: #bbb;
+		font-size: 10px;
+	}
+	.y2001__small {
+		font-size: 10px;
+		color: #666;
+	}
+
+	.y2008 {
+		font:
+			15px / 1.5 "Lucida Grande",
+			"Trebuchet MS",
+			Tahoma,
+			sans-serif;
+		color: #333;
+		background: linear-gradient(#eaf6ff, #fff 40%);
+		padding-top: 2rem;
+	}
+	.y2008__header {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 1rem 1.5rem;
+		background: linear-gradient(#7fd0ff, #1f8fd6 50%, #0b74bd 51%, #3aa6e8);
+		border-bottom: 1px solid #075a92;
+		box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+	}
+	.y2008__logo {
+		font:
+			700 28px "Trebuchet MS",
+			sans-serif;
+		color: #fff;
+		letter-spacing: -0.04em;
+		text-shadow: 0 1px 0 #075a92;
+		-webkit-box-reflect: below -6px linear-gradient(transparent 55%, rgb(255 255 255 / 0.4));
+	}
+	.y2008__logo sup {
+		font-size: 0.45em;
+		color: #c8f17a;
+	}
+	.y2008__beta {
+		display: grid;
+		place-items: center;
+		inline-size: 52px;
+		aspect-ratio: 1;
+		font: 700 12px sans-serif;
+		color: #fff;
+		background: #ff7a00;
+		clip-path: polygon(
+			50% 0,
+			61% 18%,
+			82% 11%,
+			80% 33%,
+			100% 42%,
+			85% 58%,
+			95% 78%,
+			72% 80%,
+			66% 100%,
+			50% 87%,
+			34% 100%,
+			28% 80%,
+			5% 78%,
+			15% 58%,
+			0 42%,
+			20% 33%,
+			18% 11%,
+			39% 18%
+		);
+		rotate: 12deg;
+	}
+	.y2008__hero {
+		padding: 1.5rem;
+		text-align: center;
+	}
+	.y2008__hero h2 {
+		margin: 0.4em 0 0.2em;
+		font:
+			700 clamp(24px, 4.5vw, 40px) "Trebuchet MS",
+			sans-serif;
+		color: #0b74bd;
+		letter-spacing: -0.03em;
+	}
+	.y2008__pill {
+		display: inline-block;
+		margin-top: 0.5em;
+		padding: 0.6em 1.8em;
+		font-weight: 700;
+		font-size: 18px;
+		color: #fff;
+		text-decoration: none;
+		text-shadow: 0 -1px 0 #3c7a0b;
+		background: linear-gradient(#b6ec5a, #75c11c 50%, #62ad0b 51%, #8fd534);
+		border: 1px solid #4b8a0d;
+		border-radius: 999px;
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.6),
+			0 2px 4px rgb(0 0 0 / 0.3);
+	}
+	.y2008__cloud {
+		max-inline-size: 30rem;
+		margin: 1rem auto;
+		text-align: center;
+		color: #0b74bd;
+		line-height: 2;
+	}
+	.y2008__cloud span {
+		margin-inline: 0.3em;
+	}
+
+	.y2014 {
+		font:
+			16px / 1.5 var(--font-open-sans),
+			sans-serif;
+		color: #2c3e50;
+		background: #ecf0f1;
+		padding-top: 2rem;
+	}
+	.y2014__nav {
+		display: flex;
+		justify-content: space-between;
+		padding: 1rem 1.5rem;
+		font-weight: 700;
+		color: #fff;
+		background: #2c3e50;
+	}
+	.y2014__jumbotron {
+		padding: clamp(1.5rem, 6vh, 4rem) 1.5rem;
+		text-align: center;
+		color: #fff;
+		background: #1abc9c;
+	}
+	.y2014__jumbotron h2 {
+		margin: 0;
+		font-size: clamp(26px, 5vw, 48px);
+		font-weight: 700;
+	}
+	.y2014__button {
+		display: inline-block;
+		margin-top: 1rem;
+		padding: 0.7em 2em;
+		color: #fff;
+		text-decoration: none;
+		background: #e67e22;
+		border-radius: 4px;
+		border-bottom: 4px solid #c0641a;
+	}
+	.y2014__features {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+		gap: 1rem;
+		padding: 1.5rem;
+		text-align: center;
+	}
+	.y2014__features h3 {
+		margin: 0.4em 0 0;
+		font-size: 18px;
+	}
+	.y2014__features p {
+		margin: 0.2em 0;
+		font-size: 14px;
+		color: #7f8c8d;
+	}
+	.y2014__icon {
+		display: inline-grid;
+		place-items: center;
+		inline-size: 64px;
+		aspect-ratio: 1;
+		font-size: 28px;
+		border-radius: 50%;
+		background: #fff;
+	}
+
+	.y2026 {
+		display: flex;
+		flex-direction: column;
+		font-family: var(--font-inter), sans-serif;
+		color: #16161d;
+		background:
+			radial-gradient(40rem 28rem at 85% 15%, #e4dcff, transparent 70%),
+			radial-gradient(30rem 24rem at 10% 90%, #ffe1ef, transparent 70%), #fafafa;
+	}
+	.y2026__nav {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+		padding: 1.25rem clamp(1rem, 4vw, 3rem);
+		font-size: 14px;
+	}
+	.y2026__logo {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 700;
+		font-size: 18px;
+		letter-spacing: -0.03em;
+	}
+	.y2026__dot {
+		inline-size: 18px;
+		aspect-ratio: 1;
+		border-radius: 50%;
+		background: linear-gradient(135deg, #7b5cff, #ff2e93);
+	}
+	.y2026__links {
+		margin-inline-start: auto;
+		color: #5b5b6b;
+	}
+	.y2026__hero {
+		margin-block: auto;
+		padding: 0 clamp(1rem, 4vw, 3rem);
+		max-inline-size: 46rem;
+	}
+	.y2026__hero h1 {
+		margin: 0;
+		font-size: clamp(36px, 7vw, 76px);
+		font-weight: 700;
+		line-height: 1;
+		letter-spacing: -0.045em;
+	}
+	.y2026__hero p {
+		font-size: clamp(16px, 2vw, 20px);
+		color: #5b5b6b;
+	}
+	.y2026__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+	}
+	.y2026__cta,
+	.y2026__ghost {
+		display: inline-block;
+		padding: 0.75em 1.3em;
+		font:
+			600 15px var(--font-inter),
+			sans-serif;
+		text-decoration: none;
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.y2026__cta {
+		color: #fff;
+		background: #16161d;
+		border: 1px solid #16161d;
+	}
+	.y2026__ghost {
+		color: #16161d;
+		background: transparent;
+		border: 1px solid #c9c9d4;
+	}
+	.y2026__trusted {
+		padding: 1.5rem clamp(1rem, 4vw, 3rem) 3.5rem;
+		font-size: 13px;
+		color: #8a8a99;
+	}
+	.y2026__trusted span {
+		margin-inline: 0.5em;
+		color: #c9c9d4;
+		letter-spacing: -0.1em;
+	}
+	@media (max-width: 640px) {
+		.y2026__links {
+			display: none;
+		}
+		.y2026__nav .y2026__cta {
+			margin-inline-start: auto;
+		}
+	}
+
+	.sticky {
+		top: -4.5rem;
+		left: -3rem;
+		inline-size: 150px;
+		padding: 1rem;
+		font:
+			700 15px / 1.3 "Marker Felt",
+			"Comic Sans MS",
+			cursive;
+		color: #333;
+		background: #fff275;
+		box-shadow: 0 6px 14px rgb(0 0 0 / 0.25);
+		rotate: -7deg;
+	}
+	.cookies {
+		left: 50%;
+		bottom: 1rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem 1rem;
+		inline-size: min(36rem, calc(100% - 2rem));
+		box-sizing: border-box;
+		padding: 0.9rem 1.1rem;
+		font:
+			14px var(--font-inter),
+			sans-serif;
+		color: #fff;
+		background: #16161d;
+		border-radius: 14px;
+		box-shadow: 0 12px 32px rgb(0 0 0 / 0.3);
+		translate: -50% 0;
+		transition:
+			opacity 0.6s,
+			translate 0.6s;
+	}
+	.cookies p {
+		margin: 0;
+	}
+	.cookies div {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.cookies button {
+		padding: 0.5em 1em;
+		font:
+			600 13px var(--font-inter),
+			sans-serif;
+		color: #16161d;
+		background: #fff;
+		border: 0;
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.cookies button[data-explode] {
+		color: #fff;
+		background: transparent;
+		box-shadow: inset 0 0 0 1px #fff6;
+	}
+	.cookies.is-gone {
+		opacity: 0;
+		translate: -50% -60vh;
+		pointer-events: none;
+	}
+	@media (max-width: 640px) {
+		.cookies {
+			bottom: 3.25rem;
+		}
+	}
+
+	.controls {
+		position: fixed;
+		inset: auto auto 0.75rem 0.75rem;
+		z-index: 2147483001;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.6rem;
+		font:
+			12px ui-monospace,
+			monospace;
+		color: var(--accent);
+		background: var(--ink);
+		border-radius: 6px;
+	}
+	.controls input {
+		inline-size: 7rem;
+		accent-color: var(--accent);
+	}
+	.controls button {
+		font: inherit;
+		color: var(--ink);
+		background: var(--accent);
+		border: 0;
+		border-radius: 4px;
+		padding: 0.2em 0.6em;
+		cursor: pointer;
+	}
+	.controls button[hidden] {
+		display: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
+</style>
