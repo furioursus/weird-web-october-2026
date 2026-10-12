@@ -42,6 +42,7 @@ export const FONTS: FontFamily[] = [
 	{ name: "Caveat", weights: [500, 700] },
 	{ name: "Silkscreen", weights: [400, 700] },
 	{ name: "Open Sans", weights: [400, 700] },
+	{ name: "Tinos" },
 	// new-day: fonts are added above this line
 ];
 

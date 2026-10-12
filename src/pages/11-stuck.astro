@@ -1,0 +1,643 @@
+---
+import fridgeTexture from "@/assets/11-fridge.webp";
+import HiddenCat from "@/components/HiddenCat.astro";
+import Day from "@/layouts/Day.astro";
+
+// Day 11: Stuck
+
+const WORDS = [
+	"stick",
+	"stuck",
+	"hold",
+	"stay",
+	"cling",
+	"melt",
+	"wait",
+	"want",
+	"forget",
+	"open",
+	"sleep",
+	"kiss",
+	"sing",
+	"drip",
+	"fridge",
+	"door",
+	"night",
+	"moon",
+	"milk",
+	"honey",
+	"heart",
+	"dream",
+	"window",
+	"morning",
+	"rain",
+	"light",
+	"gum",
+	"ghost",
+	"song",
+	"cat",
+	"October",
+	"sweet",
+	"cold",
+	"sticky",
+	"slow",
+	"soft",
+	"still",
+	"lonely",
+	"golden",
+	"late",
+	"and",
+	"but",
+	"with",
+	"to",
+	"on",
+	"under",
+	"is",
+	"are",
+	"not",
+	"always",
+	"never",
+	"again",
+	"forever",
+	"s",
+	"ing",
+	"ly",
+	"ed",
+];
+
+const FREE_WORDS = [
+	"the",
+	"a",
+	"an",
+	"I",
+	"me",
+	"my",
+	"you",
+	"your",
+	"we",
+	"us",
+	"our",
+	"he",
+	"him",
+	"his",
+	"she",
+	"her",
+	"it",
+	"its",
+	"they",
+	"them",
+	"their",
+];
+---
+
+<Day
+	day={11}
+	description="A fridge door and a pile of word magnets. Drag them into a poem; the little words are free."
+	fonts={["Tinos", "Caveat"]}
+>
+	<div class="door" id="door" style={`--texture: url(${fridgeTexture.src})`}>
+		<button type="button" class="start-over" id="start-over">start over</button>
+
+		<HiddenCat
+			cat="tybalt"
+			day={11}
+			size={40}
+			color="#f3e3c8"
+			style="left: calc(50% - 20px); top: 31%; z-index: 1;"
+		/>
+
+		{WORDS.map((word) => (
+	<button type="button" class="magnet" data-word={word}>
+		{word}
+	</button>
+))}
+
+		<div class="tray" id="tray">
+			<p class="tray__label">free words · take all you like</p>
+			<div class="tray__words">
+				{FREE_WORDS.map((word) => (
+	<button
+		type="button"
+		class="magnet magnet--source"
+		data-word={word}
+		aria-label={`Take a “${word}”`}
+	>
+		{word}
+	</button>
+))}
+			</div>
+		</div>
+	</div>
+</Day>
+
+<script>
+	interface SavedMagnet {
+		word: string;
+		free: boolean;
+		x: number;
+		y: number;
+		tilt: number;
+	}
+
+	interface Held {
+		magnet: HTMLElement;
+		offsetX: number;
+		offsetY: number;
+	}
+
+	const door = document.getElementById("door") as HTMLElement;
+	const tray = document.getElementById("tray") as HTMLElement;
+	const startOverButton = document.getElementById("start-over") as HTMLButtonElement;
+	const bankMagnets = [...door.querySelectorAll<HTMLElement>(".magnet:not(.magnet--source)")];
+
+	const STORAGE_KEY = "wwo:fridge-poem";
+	const STARTER = [
+		{ word: "stuck", free: false },
+		{ word: "on", free: false },
+		{ word: "you", free: true },
+	];
+	const STARTER_TOP = 0.1;
+	const MOST_TILT = 4;
+	const SCATTER_TOP = 0.24;
+	const PILE_WIDTH = 860;
+	const SCATTER_SIDE = 0.05;
+	const GAP_LEAST = 6;
+	const GAP_EXTRA = 12;
+	const ROW_GAP = 8;
+	const JITTER = 3;
+	const NUDGE = 0.01;
+	const BIG_NUDGE = 0.05;
+	const VOLUME = 0.3;
+
+	let held: Held | null = null;
+	let topLayer = 1;
+	let audio: AudioContext | null = null;
+	let noise: AudioBuffer | null = null;
+
+	function randomBetween(least: number, most: number) {
+		return least + Math.random() * (most - least);
+	}
+
+	function randomTilt() {
+		return randomBetween(-MOST_TILT, MOST_TILT);
+	}
+
+	function shuffled<T>(items: T[]) {
+		const copy = [...items];
+		for (let i = copy.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[copy[i], copy[j]] = [copy[j] as T, copy[i] as T];
+		}
+		return copy;
+	}
+
+	function placeMagnet(magnet: HTMLElement, x: number, y: number, tilt: number) {
+		magnet.dataset.x = String(x);
+		magnet.dataset.y = String(y);
+		magnet.dataset.tilt = String(tilt);
+		magnet.style.left = `${x * 100}%`;
+		magnet.style.top = `${y * 100}%`;
+		magnet.style.rotate = `${tilt}deg`;
+	}
+
+	function bringToFront(magnet: HTMLElement) {
+		topLayer += 1;
+		magnet.style.zIndex = String(topLayer);
+	}
+
+	function makeFreeMagnet(word: string) {
+		const magnet = document.createElement("button");
+		magnet.type = "button";
+		magnet.className = "magnet magnet--free";
+		magnet.dataset.word = word;
+		magnet.textContent = word;
+		door.append(magnet);
+		bringToFront(magnet);
+		return magnet;
+	}
+
+	function placedMagnets() {
+		return [...door.querySelectorAll<HTMLElement>(".magnet:not(.magnet--source)")];
+	}
+
+	function findBankMagnet(word: string) {
+		return bankMagnets.find((magnet) => magnet.dataset.word === word);
+	}
+
+	function layOut(magnets: HTMLElement[], left: number, right: number, top: number) {
+		const doorWidth = door.clientWidth;
+		const doorHeight = door.clientHeight;
+		let x = left;
+		let y = top;
+		for (const magnet of magnets) {
+			const width = magnet.offsetWidth;
+			if (x + width > right) {
+				x = left + randomBetween(0, GAP_EXTRA);
+				y += magnet.offsetHeight + ROW_GAP;
+			}
+			const jitterY = randomBetween(-JITTER, JITTER);
+			placeMagnet(magnet, x / doorWidth, (y + jitterY) / doorHeight, randomTilt());
+			bringToFront(magnet);
+			x += width + randomBetween(GAP_LEAST, GAP_LEAST + GAP_EXTRA);
+		}
+	}
+
+	function scatter() {
+		for (const magnet of door.querySelectorAll(".magnet--free")) {
+			magnet.remove();
+		}
+
+		const doorWidth = door.clientWidth;
+		const doorHeight = door.clientHeight;
+		const pileWidth = Math.min(doorWidth * (1 - 2 * SCATTER_SIDE), PILE_WIDTH);
+		const left = (doorWidth - pileWidth) / 2;
+		const right = left + pileWidth;
+
+		const starter: HTMLElement[] = [];
+		for (const { word, free } of STARTER) {
+			const magnet = free ? makeFreeMagnet(word) : findBankMagnet(word);
+			if (magnet) {
+				starter.push(magnet);
+			}
+		}
+		layOut(starter, left, right, doorHeight * STARTER_TOP);
+
+		const rest = bankMagnets.filter((magnet) => !starter.includes(magnet));
+		layOut(shuffled(rest), left, right, doorHeight * SCATTER_TOP);
+	}
+
+	function savePoem() {
+		const magnets = placedMagnets().sort((a, b) => Number(a.style.zIndex) - Number(b.style.zIndex));
+		const saved: SavedMagnet[] = magnets.map((magnet) => ({
+			word: magnet.dataset.word ?? "",
+			free: magnet.classList.contains("magnet--free"),
+			x: Number(magnet.dataset.x),
+			y: Number(magnet.dataset.y),
+			tilt: Number(magnet.dataset.tilt),
+		}));
+		try {
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+		} catch {
+			// Storage blocked: the poem lasts for this visit only.
+		}
+	}
+
+	function readSavedPoem(): SavedMagnet[] | null {
+		try {
+			const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as SavedMagnet[] | null;
+			if (!Array.isArray(saved)) {
+				return null;
+			}
+			const savedBankWords = saved.filter((entry) => !entry.free).map((entry) => entry.word);
+			const everyWordOnce =
+				savedBankWords.length === bankMagnets.length &&
+				bankMagnets.every((magnet) => savedBankWords.includes(magnet.dataset.word ?? ""));
+			return everyWordOnce ? saved : null;
+		} catch {
+			return null;
+		}
+	}
+
+	function restorePoem(saved: SavedMagnet[]) {
+		for (const entry of saved) {
+			const magnet = entry.free ? makeFreeMagnet(entry.word) : findBankMagnet(entry.word);
+			if (magnet) {
+				placeMagnet(magnet, entry.x, entry.y, entry.tilt);
+				bringToFront(magnet);
+			}
+		}
+	}
+
+	function getAudio() {
+		if (!audio) {
+			audio = new AudioContext();
+			noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.05), audio.sampleRate);
+			const samples = noise.getChannelData(0);
+			for (let i = 0; i < samples.length; i++) {
+				samples[i] = Math.random() * 2 - 1;
+			}
+		}
+		return audio;
+	}
+
+	function playClack(loudness: number) {
+		const context = getAudio();
+		if (!noise) {
+			return;
+		}
+		const now = context.currentTime;
+
+		const click = context.createBufferSource();
+		click.buffer = noise;
+		const clickFilter = context.createBiquadFilter();
+		clickFilter.type = "bandpass";
+		clickFilter.frequency.value = randomBetween(1800, 2600);
+		clickFilter.Q.value = 1.4;
+		const clickVolume = context.createGain();
+		clickVolume.gain.setValueAtTime(VOLUME * loudness, now);
+		clickVolume.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+		click.connect(clickFilter).connect(clickVolume).connect(context.destination);
+		click.start(now);
+
+		const thunk = context.createOscillator();
+		thunk.frequency.setValueAtTime(180, now);
+		thunk.frequency.exponentialRampToValueAtTime(70, now + 0.05);
+		const thunkVolume = context.createGain();
+		thunkVolume.gain.setValueAtTime(VOLUME * loudness * 0.8, now);
+		thunkVolume.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+		thunk.connect(thunkVolume).connect(context.destination);
+		thunk.start(now);
+		thunk.stop(now + 0.07);
+	}
+
+	function positionInDoor(element: HTMLElement) {
+		const doorBox = door.getBoundingClientRect();
+		const box = element.getBoundingClientRect();
+		const x = box.left + box.width / 2 - element.offsetWidth / 2 - doorBox.left;
+		const y = box.top + box.height / 2 - element.offsetHeight / 2 - doorBox.top;
+		return { x: x / door.clientWidth, y: y / door.clientHeight };
+	}
+
+	function isOverTray(magnet: HTMLElement) {
+		const box = magnet.getBoundingClientRect();
+		const trayBox = tray.getBoundingClientRect();
+		const centerX = box.left + box.width / 2;
+		const centerY = box.top + box.height / 2;
+		return (
+			centerX > trayBox.left &&
+			centerX < trayBox.right &&
+			centerY > trayBox.top &&
+			centerY < trayBox.bottom
+		);
+	}
+
+	function clamp(value: number, least: number, most: number) {
+		return Math.min(Math.max(value, least), most);
+	}
+
+	function moveTo(magnet: HTMLElement, x: number, y: number, tilt: number) {
+		const mostX = 1 - magnet.offsetWidth / door.clientWidth;
+		const mostY = 1 - magnet.offsetHeight / door.clientHeight;
+		placeMagnet(magnet, clamp(x, 0, mostX), clamp(y, 0, mostY), tilt);
+	}
+
+	function pickUp(event: PointerEvent) {
+		const target = (event.target as HTMLElement).closest<HTMLElement>(".magnet");
+		if (!target || event.button !== 0) {
+			return;
+		}
+		event.preventDefault();
+
+		let magnet = target;
+		if (target.classList.contains("magnet--source")) {
+			magnet = makeFreeMagnet(target.dataset.word ?? "");
+			const { x, y } = positionInDoor(target);
+			placeMagnet(magnet, x, y, 0);
+		}
+
+		bringToFront(magnet);
+		magnet.classList.add("is-held");
+		magnet.style.rotate = "0deg";
+		const box = magnet.getBoundingClientRect();
+		held = { magnet, offsetX: event.clientX - box.left, offsetY: event.clientY - box.top };
+		door.setPointerCapture(event.pointerId);
+		playClack(0.35);
+	}
+
+	function drag(event: PointerEvent) {
+		if (!held) {
+			return;
+		}
+		const doorBox = door.getBoundingClientRect();
+		const x = (event.clientX - held.offsetX - doorBox.left) / door.clientWidth;
+		const y = (event.clientY - held.offsetY - doorBox.top) / door.clientHeight;
+		moveTo(held.magnet, x, y, 0);
+		const isFree = held.magnet.classList.contains("magnet--free");
+		tray.classList.toggle("is-taking-back", isFree && isOverTray(held.magnet));
+	}
+
+	function letGo() {
+		if (!held) {
+			return;
+		}
+		const { magnet } = held;
+		held = null;
+		magnet.classList.remove("is-held");
+		tray.classList.remove("is-taking-back");
+
+		if (magnet.classList.contains("magnet--free") && isOverTray(magnet)) {
+			magnet.remove();
+			playClack(0.5);
+		} else {
+			moveTo(magnet, Number(magnet.dataset.x), Number(magnet.dataset.y), randomTilt());
+			playClack(1);
+		}
+		savePoem();
+	}
+
+	function takeFreeWordByKeyboard(source: HTMLElement) {
+		const magnet = makeFreeMagnet(source.dataset.word ?? "");
+		const trayTop = tray.offsetTop / door.clientHeight;
+		moveTo(magnet, randomBetween(0.1, 0.7), trayTop - 0.06, randomTilt());
+		magnet.focus();
+		savePoem();
+	}
+
+	function onClick(event: MouseEvent) {
+		const isKeyboardClick = event.detail === 0;
+		const source = (event.target as HTMLElement).closest<HTMLElement>(".magnet--source");
+		if (isKeyboardClick && source) {
+			takeFreeWordByKeyboard(source);
+		}
+	}
+
+	function nudge(event: KeyboardEvent) {
+		const magnet = (event.target as HTMLElement).closest<HTMLElement>(".magnet");
+		if (!magnet || magnet.classList.contains("magnet--source")) {
+			return;
+		}
+		const isFree = magnet.classList.contains("magnet--free");
+		if (isFree && (event.key === "Delete" || event.key === "Backspace")) {
+			event.preventDefault();
+			magnet.remove();
+			savePoem();
+			return;
+		}
+
+		const step = event.shiftKey ? BIG_NUDGE : NUDGE;
+		let x = Number(magnet.dataset.x);
+		let y = Number(magnet.dataset.y);
+		if (event.key === "ArrowLeft") {
+			x -= step;
+		} else if (event.key === "ArrowRight") {
+			x += step;
+		} else if (event.key === "ArrowUp") {
+			y -= step;
+		} else if (event.key === "ArrowDown") {
+			y += step;
+		} else {
+			return;
+		}
+		event.preventDefault();
+		bringToFront(magnet);
+		moveTo(magnet, x, y, Number(magnet.dataset.tilt));
+		savePoem();
+	}
+
+	function startOver() {
+		scatter();
+		savePoem();
+	}
+
+	function setUpDoor() {
+		const saved = readSavedPoem();
+		if (saved) {
+			restorePoem(saved);
+		} else {
+			scatter();
+		}
+		door.classList.add("is-ready");
+	}
+
+	document.fonts.ready.then(setUpDoor);
+	door.addEventListener("pointerdown", pickUp);
+	door.addEventListener("pointermove", drag);
+	door.addEventListener("pointerup", letGo);
+	door.addEventListener("pointercancel", letGo);
+	door.addEventListener("click", onClick);
+	door.addEventListener("keydown", nudge);
+	startOverButton.addEventListener("click", startOver);
+</script>
+
+<style is:global>
+	:root {
+		--steel: #8e8e8e;
+		--magnet: #fffdf8;
+		--ink: #111;
+		--tape: #ff9ccb;
+	}
+	html,
+	body {
+		margin: 0;
+		background: var(--steel);
+		color: var(--ink);
+	}
+
+	.door {
+		position: relative;
+		block-size: 100dvh;
+		overflow: hidden;
+		container-type: inline-size;
+		background:
+			var(--texture) 0 0 / 640px auto repeat,
+			var(--steel);
+	}
+
+	.wwo-nav {
+		mix-blend-mode: normal;
+		color: var(--ink);
+	}
+	.wwo-nav a {
+		padding: 2px 6px;
+		background: var(--magnet);
+		box-shadow: 1px 2px 3px rgb(0 0 0 / 0.28);
+		text-decoration: none;
+	}
+
+	.start-over {
+		position: absolute;
+		inset: 16px auto auto 16px;
+		z-index: 10000;
+		padding: 2px 12px 4px;
+		border: 0;
+		background: var(--tape);
+		box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+		rotate: -3deg;
+		font: 700 20px / 1.2 var(--font-caveat);
+		color: var(--ink);
+		cursor: pointer;
+	}
+
+	.magnet {
+		position: absolute;
+		padding: 0.1em 0.38em 0.15em;
+		border: 0;
+		border-radius: 1px;
+		background: var(--magnet);
+		color: var(--ink);
+		box-shadow:
+			0 1px 0 rgb(0 0 0 / 0.22),
+			1px 2px 3px rgb(0 0 0 / 0.28);
+		font: 400 clamp(13px, 3.4cqi, 19px) / 1.2 var(--font-tinos);
+		white-space: nowrap;
+		cursor: grab;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		transition:
+			scale 0.12s ease-out,
+			box-shadow 0.12s ease-out,
+			rotate 0.15s ease-out;
+	}
+	.magnet:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 2px;
+	}
+	.magnet.is-held {
+		scale: 1.1;
+		cursor: grabbing;
+		box-shadow:
+			0 1px 0 rgb(0 0 0 / 0.15),
+			3px 10px 14px rgb(0 0 0 / 0.35);
+	}
+	.door:not(.is-ready) .magnet:not(.magnet--source) {
+		visibility: hidden;
+	}
+
+	.tray {
+		position: absolute;
+		inset: auto 0 max(3%, 56px);
+		inline-size: min(640px, 90%);
+		margin-inline: auto;
+		box-sizing: border-box;
+		padding: 18px 10px 12px;
+		border: 2px dashed rgb(0 0 0 / 0.3);
+		border-radius: 10px;
+		background: rgb(255 255 255 / 0.18);
+		transition:
+			background 0.15s,
+			border-color 0.15s;
+	}
+	.tray.is-taking-back {
+		border-color: var(--ink);
+		background: rgb(255 255 255 / 0.4);
+	}
+	.tray__label {
+		position: absolute;
+		inset: -14px auto auto 14px;
+		margin: 0;
+		padding: 0 10px 2px;
+		background: var(--tape);
+		box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+		rotate: -2deg;
+		font: 700 18px / 1.3 var(--font-caveat);
+	}
+	.tray__words {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 6px 7px;
+	}
+	.magnet--source {
+		position: static;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation: none !important;
+			transition: none !important;
+		}
+	}
+</style>

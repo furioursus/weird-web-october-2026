@@ -31,4 +31,8 @@ export const CARDS: Partial<Record<number, CardText>> = {
 		title: "Brightpath",
 		line: "They never deleted a redesign. Every one is still under there.",
 	},
+	11: {
+		title: "Fridge Poetry",
+		line: "Fifty-odd word magnets on a fridge door. Pronouns are free.",
+	},
 };

@@ -1,0 +1,14 @@
+# Day 11's Fridge Poetry
+
+Day 11 (Stuck) is magnet poetry on a fridge door: 57 one-of-a-kind word magnets, plus a tray of articles and pronouns you can take as many of as you like. The whole page is the door, a tiled photo of textured fridge enamel. The magnets are set in Tinos, the labels in Caveat.
+
+- **The words** are `WORDS` in the frontmatter, including the suffixes `s`, `ing`, `ly` and `ed`. Each exists once. `FREE_WORDS` holds the 21 articles and pronouns in the tray.
+- **The texture** is `src/assets/11-fridge.webp`, 1280 × 853 at quality 80 (100KB), tiled every 640px (`.door`'s background) so the grain is a little finer than my photo. The photo's edges wrap seamlessly: the difference across each wrap is about the same as between any two neighboring rows or columns. My original is in `design/day-11/`, which `.git/info/exclude` keeps out of git.
+- **The layout** is drawn on every load without a saved poem, and by **start over**. "stuck on you" goes on its own line 10% down (`STARTER`, `STARTER_TOP`), with "you" taken from the tray. The rest of the words are shuffled and laid out in rows from 24% down (`SCATTER_TOP`), centered and at most 860px wide (`PILE_WIDTH`), with gaps of 6–18px (`GAP_LEAST`, `GAP_EXTRA`), 3px of jitter up or down (`JITTER`) and up to 4° of tilt either way (`MOST_TILT`). Positions are stored as fractions of the door, so magnets keep their places when the window resizes.
+- **Dragging:** pick up a magnet and it lifts and straightens; drop it and it lands at a new tilt. Dragging from the tray takes a copy and leaves the tray's own in place. Dropping a copy back on the tray puts it away; the tray darkens its border while a copy is over it. Magnets can't be dragged off the door.
+- **Keyboard:** Enter on a tray word puts a copy just above the tray and focuses it. Arrow keys nudge a magnet 1% of the door (`NUDGE`), 5% with Shift (`BIG_NUDGE`), and Delete or Backspace puts a free copy away.
+- **The poem is saved** in `localStorage` (`wwo:fridge-poem`) after every move, in stacking order. A saved poem that doesn't hold every word in `WORDS` exactly once is ignored, so changing the word list starts everyone over.
+- **Sound** is synthesized with Web Audio, with no files: a click of bandpassed noise (1800–2600Hz) and a falling sine thunk. A drop plays it at full volume, a pickup at 35%, putting a copy away at 50%. Volume is 0.3 (`VOLUME`). There's no mute.
+- **The hidden cat** is Tybalt, `HiddenCat`'s silhouette at 40px in cream (`#f3e3c8`), fixed 31% down the middle of the door, under the word pile. Bits of him show through the gaps until the words around him are moved.
+- **The prev/next nav** is restyled as two small magnets; its usual difference blend turned gray on the gray door.
+- **Phones:** the words drop to 13px. At 375 × 812, the pile ends around 430px down and the tray starts at about 654px, with no scrolling.
